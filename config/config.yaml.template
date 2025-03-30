@@ -1,0 +1,27 @@
+video:
+  format: "mp4"
+  resolution: "1920x1080"
+  fps: 30
+  transition_duration: 1.5
+  background_color: "#FFFFFF"
+
+elevenlabs:
+  api_key: "YOUR_ELEVENLABS_API_KEY"
+  voice_id: "EXAVITQu4vr4xnSDxMaL"  # Sarah's voice ID from available voices
+  model_id: "eleven_multilingual_v2"  # Better for Portuguese
+
+latex:
+  dpi: 300
+  image_format: "png"
+  math_scale: 1.2
+
+narration:
+  language: "pt-BR"
+  pace: 1.0  # Normal speaking pace
+  math_pause: 0.5  # Extra pause after mathematical expressions
+
+openai:
+  api_key: "YOUR_OPENAI_API_KEY"  # Add your OpenAI API key here
+  model: "gpt-4o"  # Model to use for script generation
+  temperature: 0.7  # Controls randomness (0.0 to 1.0)
+  max_tokens: 1000  # Maximum length of generated response

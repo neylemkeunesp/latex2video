@@ -1,0 +1,77 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\title{Técnica dos Multiplicadores de Lagrange}
+\author{Apresentação Gerada por IA}
+\date{\today}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}
+\frametitle{Introdução}
+\begin{itemize}
+    \item Os multiplicadores de Lagrange são uma técnica poderosa para otimização com restrições
+    \item Desenvolvida por Joseph-Louis Lagrange no século XVIII
+    \item Amplamente utilizada em física, engenharia e economia
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{O Problema de Otimização com Restrições}
+\begin{itemize}
+    \item Objetivo: Maximizar ou minimizar uma função $f(x,y)$
+    \item Sujeito a uma restrição $g(x,y) = c$
+    \item Exemplo: Maximizar a área de um retângulo com perímetro fixo
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{A Técnica dos Multiplicadores de Lagrange}
+\begin{enumerate}
+    \item Definir a função Lagrangiana: $L(x,y,\lambda) = f(x,y) - \lambda(g(x,y) - c)$
+    \item Calcular as derivadas parciais e igualá-las a zero:
+        \begin{align*}
+        \frac{\partial L}{\partial x} &= 0 \\
+        \frac{\partial L}{\partial y} &= 0 \\
+        \frac{\partial L}{\partial \lambda} &= 0
+        \end{align*}
+    \item Resolver o sistema de equações
+    \item Verificar os pontos críticos encontrados
+\end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{Exemplo: Maximização da Área de um Retângulo}
+\begin{itemize}
+    \item Função objetivo: $f(x,y) = xy$ (área)
+    \item Restrição: $g(x,y) = 2x + 2y = P$ (perímetro)
+    \item Lagrangiana: $L(x,y,\lambda) = xy - \lambda(2x + 2y - P)$
+    \item Solução: $x = y = P/4$ (quadrado)
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Aplicações}
+\begin{itemize}
+    \item Física: Princípio do trabalho virtual, mecânica analítica
+    \item Engenharia: Otimização de design, controle de sistemas
+    \item Economia: Maximização de utilidade sob restrições orçamentárias
+    \item Aprendizado de máquina: Otimização de funções de perda com regularização
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Conclusão}
+\begin{itemize}
+    \item Os multiplicadores de Lagrange são uma ferramenta versátil para otimização com restrições
+    \item Permitem transformar problemas com restrições em problemas sem restrições
+    \item Amplamente aplicáveis em diversos campos da ciência e engenharia
+    \item Compreender esta técnica é fundamental para abordar problemas complexos de otimização
+\end{itemize}
+\end{frame}
+
+\end{document}

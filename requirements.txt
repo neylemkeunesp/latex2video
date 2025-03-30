@@ -1,0 +1,11 @@
+pdf2image
+python-latex
+elevenlabs
+pillow==8.3.2  # Last version with ANTIALIAS
+moviepy==1.0.3
+pyyaml
+requests
+natsort
+openai>=1.0.0  # For ChatGPT API access
+# ffmpeg is required for video assembly
+# Install with: sudo apt-get install ffmpeg (Linux) or brew install ffmpeg (macOS)
