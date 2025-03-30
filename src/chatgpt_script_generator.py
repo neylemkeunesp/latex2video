@@ -11,16 +11,158 @@ from src.latex_parser import parse_latex_file, Slide
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def clean_chatgpt_response(response: str) -> str:
+    """
+    Clean up ChatGPT response to ensure it doesn't contain any markup or unwanted text.
+    
+    This function:
+    1. Removes markdown formatting
+    2. Removes ChatGPT-specific markers or headers
+    3. Removes LaTeX control characters and math delimiters
+    4. Ensures the text is clean and ready for narration
+    """
+    # Remove any markdown headers (# Header)
+    response = re.sub(r'^#+ .*$', '', response, flags=re.MULTILINE)
+    
+    # Remove markdown formatting for bold and italic
+    response = re.sub(r'\*\*(.*?)\*\*', r'\1', response)  # Bold
+    response = re.sub(r'\*(.*?)\*', r'\1', response)      # Italic
+    response = re.sub(r'__(.*?)__', r'\1', response)      # Bold
+    response = re.sub(r'_(.*?)_', r'\1', response)        # Italic
+    
+    # Remove markdown code blocks
+    response = re.sub(r'```.*?```', '', response, flags=re.DOTALL)
+    response = re.sub(r'`(.*?)`', r'\1', response)
+    
+    # Remove markdown lists
+    response = re.sub(r'^\s*[-*+]\s+', '', response, flags=re.MULTILINE)
+    response = re.sub(r'^\s*\d+\.\s+', '', response, flags=re.MULTILINE)
+    
+    # Remove LaTeX math delimiters and control characters
+    # Inline math delimiters: \( ... \) or $ ... $
+    response = re.sub(r'\\\((.*?)\\\)', r'\1', response, flags=re.DOTALL)
+    response = re.sub(r'\$(.*?)\$', r'\1', response, flags=re.DOTALL)
+    
+    # Display math delimiters: \[ ... \] or $$ ... $$
+    response = re.sub(r'\\\[(.*?)\\\]', r'\1', response, flags=re.DOTALL)
+    response = re.sub(r'\$\$(.*?)\$\$', r'\1', response, flags=re.DOTALL)
+    
+    # Remove LaTeX commands that might remain
+    response = re.sub(r'\\[a-zA-Z]+', '', response)  # Remove LaTeX commands like \lambda, \alpha, etc.
+    response = re.sub(r'\\[^a-zA-Z]', '', response)  # Remove LaTeX special characters like \{, \}, etc.
+    
+    # Remove common ChatGPT phrases
+    phrases_to_remove = [
+        r"^Aqui está um script de narração.*?:",
+        r"^Aqui está uma narração.*?:",
+        r"^Script de narração.*?:",
+        r"^Narração.*?:",
+        r"^Claro.*?:",
+        r"^Certamente.*?:",
+        r"^Vamos criar.*?:",
+        r"^Segue abaixo.*?:",
+        r"^Segue o script.*?:",
+        r"^Segue a narração.*?:",
+        r"^Espero que isso ajude.*$",
+        r"^Espero que esta narração.*$",
+        r"^Espero que este script.*$",
+        r"^Espero ter atendido.*$",
+        r"^Se precisar de alguma alteração.*$",
+        r"^Se precisar de ajustes.*$",
+        # Remove specific markers
+        r"\[Início do Script de Narração\]",
+        r"\[Fim do Script de Narração\]",
+        r"\{Início do Video\]",
+        r"\{Fim do Video\]",
+        r"\[Início da Narração\]",
+        r"\[Fim da Narração\]",
+        r"\[Início\]",
+        r"\[Fim\]",
+        r"\{Início\]",
+        r"\{Fim\]",
+    ]
+    
+    for phrase in phrases_to_remove:
+        response = re.sub(phrase, '', response, flags=re.MULTILINE | re.IGNORECASE)
+    
+    # Remove any lines that start with common ChatGPT markers
+    response = re.sub(r'^>.*$', '', response, flags=re.MULTILINE)
+    
+    # Remove any lines that are just dashes or equals signs (separators)
+    response = re.sub(r'^[=-]+$', '', response, flags=re.MULTILINE)
+    
+    # Remove any lines that are just whitespace
+    response = re.sub(r'^\s*$', '', response, flags=re.MULTILINE)
+    
+    # Consolidate multiple newlines into a single newline
+    response = re.sub(r'\n{2,}', '\n', response)
+    
+    # Trim whitespace
+    response = response.strip()
+    
+    return response
+
 def format_slide_for_chatgpt(slide: Slide) -> str:
     """
     Format a slide's content for sending to ChatGPT-4o.
-    Includes special handling for mathematical formulas.
+    Includes special handling for mathematical formulas and title pages.
     """
     # Start with the slide title
     formatted_content = f"# {slide.title}\n\n"
     
     # Process the content
     content = slide.content
+    
+    # Special handling for title page
+    if slide.title == "Title Page":
+        formatted_content += content
+        formatted_content += "\n\n---\n\n"
+        formatted_content += "Por favor, crie um script de narração para o slide de título desta apresentação. "
+        formatted_content += "Deve ser uma introdução breve e acolhedora que apresente o tema da apresentação. "
+        formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
+        formatted_content += "O script deve ser adequado para narração em um vídeo educacional."
+        return formatted_content
+    
+    # Special handling for outline/TOC slide
+    if slide.title == "Outline":
+        formatted_content += content
+        formatted_content += "\n\n---\n\n"
+        formatted_content += "Por favor, crie um script de narração para o slide de sumário/índice desta apresentação. "
+        formatted_content += "Deve mencionar brevemente que vamos ver os tópicos principais da apresentação. "
+        formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
+        formatted_content += "O script deve ser adequado para narração em um vídeo educacional."
+        return formatted_content
+    
+    # Special handling for section slides
+    if slide.title.startswith("Section:"):
+        section_name = slide.title.replace("Section:", "").strip()
+        formatted_content += content
+        formatted_content += "\n\n---\n\n"
+        formatted_content += f"Por favor, crie um script de narração para o slide de seção '{section_name}'. "
+        formatted_content += "Deve ser uma breve introdução à seção, mencionando o que será abordado. "
+        formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
+        formatted_content += "O script deve ser adequado para narração em um vídeo educacional."
+        return formatted_content
+    
+    # Special handling for introduction/agenda slide
+    if slide.title == "Introdução":
+        formatted_content += content
+        formatted_content += "\n\n---\n\n"
+        formatted_content += "Por favor, crie um script de narração para o slide de introdução/agenda desta apresentação. "
+        formatted_content += "Deve apresentar brevemente os tópicos que serão abordados e preparar o espectador para o conteúdo. "
+        formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
+        formatted_content += "O script deve ser adequado para narração em um vídeo educacional."
+        return formatted_content
+    
+    # Special handling for additional slides
+    if slide.title.startswith("Additional Slide"):
+        formatted_content += content
+        formatted_content += "\n\n---\n\n"
+        formatted_content += "Por favor, crie um script de narração para este slide adicional. "
+        formatted_content += "Deve ser uma breve transição ou recapitulação do conteúdo visto até agora. "
+        formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
+        formatted_content += "O script deve ser adequado para narração em um vídeo educacional."
+        return formatted_content
     
     # Handle special case for slide 3 (A Técnica dos Multiplicadores de Lagrange)
     if slide.title == "A Técnica dos Multiplicadores de Lagrange" and "\\frac{\\partial L}{\\partial x}" in content:
@@ -71,6 +213,8 @@ def format_slide_for_chatgpt(slide: Slide) -> str:
     formatted_content += "\n\n---\n\n"
     formatted_content += "Por favor, crie um script de narração para este slide que explique o conteúdo de forma clara e concisa. "
     formatted_content += "Dê atenção especial às fórmulas matemáticas, explicando-as de maneira simples e compreensível. "
+    formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
+    formatted_content += "Limite-se apenas ao conteúdo que está explicitamente mostrado no slide. "
     formatted_content += "O script deve ser adequado para narração em um vídeo educacional."
     
     return formatted_content
