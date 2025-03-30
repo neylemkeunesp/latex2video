@@ -67,7 +67,7 @@ def main():
     """Main function to generate video using ChatGPT-4o scripts."""
     parser = argparse.ArgumentParser(description="Generate a narrated video using ChatGPT-4o scripts.")
     parser.add_argument("latex_file", help="Path to the input LaTeX (.tex) file.")
-    parser.add_argument("-c", "--config", default="../config/config.yaml", help="Path to the configuration YAML file.")
+    parser.add_argument("-c", "--config", default="config/config.yaml", help="Path to the configuration YAML file.")
     parser.add_argument("-r", "--responses", default="output/chatgpt_responses", help="Path to the directory containing ChatGPT-4o responses.")
     
     args = parser.parse_args()
