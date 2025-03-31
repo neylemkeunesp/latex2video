@@ -83,110 +83,110 @@ def convert_pdf_to_images(pdf_path: str, output_folder: str, dpi: int, image_for
     logging.info(f"Converting PDF {pdf_path} to images (DPI: {dpi}, Format: {image_format})...")
     os.makedirs(output_folder, exist_ok=True)
     
+    # List existing files in the output folder before conversion
+    existing_files = set(os.listdir(output_folder))
+    logging.debug(f"Existing files in output folder before conversion: {existing_files}")
+    
+    # Try multiple approaches to convert PDF to images
+    image_paths = []
+    
+    # Approach 1: Default settings
     try:
-        # List existing files in the output folder before conversion
-        existing_files = set(os.listdir(output_folder))
-        logging.debug(f"Existing files in output folder before conversion: {existing_files}")
-        
-        # Convert PDF to images
-        logging.info("Starting PDF to image conversion with pdf2image...")
+        logging.info("Attempting conversion with default settings...")
         images = convert_from_path(
             pdf_path,
             dpi=dpi,
             output_folder=output_folder,
             fmt=image_format.lower(),
-            output_file="slide_", # Generates slide_01-1.png, slide_01-2.png etc.
-            paths_only=True,
-            thread_count=4 # Use multiple threads for potentially faster conversion
+            paths_only=True
         )
         
-        logging.info(f"pdf2image returned {len(images)} image paths")
-        
-        # Check what files were actually created
-        new_files = set(os.listdir(output_folder)) - existing_files
-        logging.info(f"New files created: {new_files}")
-        
-        # Rename files to simple slide_1.png, slide_2.png etc.
-        image_paths = []
-        
-        # Check if images list is empty
-        if not images:
-            logging.error("pdf2image returned an empty list of images")
-            # Try to find any image files that might have been created
-            potential_images = [f for f in new_files if f.endswith(f'.{image_format.lower()}')]
-            if potential_images:
-                logging.info(f"Found {len(potential_images)} potential image files: {potential_images}")
-                # Sort them by name and use these instead
-                potential_images.sort()
-                images = [os.path.join(output_folder, img) for img in potential_images]
-                logging.info(f"Using these files instead: {images}")
-            else:
-                logging.error("No image files found in the output directory")
-                return []
-        
-        try:
-            # Sort images based on the number extracted from the filename
-            logging.debug(f"Sorting images: {images}")
-            images.sort(key=lambda x: int(re.search(r'-(\d+)\.', x).group(1)))
-        except Exception as sort_error:
-            logging.error(f"Error sorting images: {sort_error}")
-            logging.info("Attempting to sort images by filename instead")
-            images.sort()
-        
-        for i, img_path in enumerate(images):
-            new_name = os.path.join(output_folder, f"slide_{i + 1}.{image_format.lower()}")
-            logging.debug(f"Attempting to rename {img_path} to {new_name}")
+        if images:
+            logging.info(f"Successfully converted PDF to {len(images)} images with default settings")
             
-            # pdf2image might create files like slide_01-1.png, need robust renaming
-            if os.path.exists(img_path):
+            # Rename files to simple slide_1.png, slide_2.png etc.
+            for i, img_path in enumerate(images):
+                new_name = os.path.join(output_folder, f"slide_{i + 1}.{image_format.lower()}")
                 try:
                     os.rename(img_path, new_name)
                     image_paths.append(new_name)
-                    logging.debug(f"Successfully renamed {img_path} to {new_name}")
+                    logging.debug(f"Renamed {img_path} to {new_name}")
                 except Exception as rename_error:
                     logging.error(f"Error renaming {img_path} to {new_name}: {rename_error}")
                     # If renaming fails, still add the original path to the list
                     image_paths.append(img_path)
-            else:
-                logging.warning(f"Expected image file not found after conversion: {img_path}")
-                # Try to find the file with a similar name
-                img_basename = os.path.basename(img_path)
-                similar_files = [f for f in new_files if img_basename in f]
-                if similar_files:
-                    similar_path = os.path.join(output_folder, similar_files[0])
-                    logging.info(f"Found similar file: {similar_path}")
-                    try:
-                        os.rename(similar_path, new_name)
-                        image_paths.append(new_name)
-                        logging.debug(f"Renamed similar file {similar_path} to {new_name}")
-                    except Exception as rename_error:
-                        logging.error(f"Error renaming similar file: {rename_error}")
-                        image_paths.append(similar_path)
-
-        if not image_paths:
-            logging.error("No images were generated from the PDF.")
-            return []
-
-        logging.info(f"Successfully converted PDF to {len(image_paths)} images in {output_folder}")
-        return image_paths
-        
+            
+            return image_paths
+        else:
+            logging.warning("No images returned with default settings")
     except Exception as e:
-        # Catch potential Poppler errors or other issues
-        logging.error(f"Error converting PDF to images: {e}")
-        logging.error("Ensure Poppler utilities are installed and in PATH (needed by pdf2image).")
+        logging.error(f"Error with default settings: {e}")
+    
+    # Approach 2: Alternative settings
+    try:
+        logging.info("Attempting conversion with alternative settings (single thread, no pdftocairo)...")
+        images = convert_from_path(
+            pdf_path,
+            dpi=dpi,
+            output_folder=output_folder,
+            fmt=image_format.lower(),
+            paths_only=True,
+            thread_count=1,
+            use_pdftocairo=False
+        )
         
-        # Try to list any files that might have been created despite the error
-        try:
-            files_after_error = os.listdir(output_folder)
-            image_files = [f for f in files_after_error if f.endswith(f'.{image_format.lower()}')]
-            if image_files:
-                logging.info(f"Found {len(image_files)} image files in output folder after error: {image_files}")
-                # Return these files as a fallback
-                return [os.path.join(output_folder, img) for img in image_files]
-        except Exception as list_error:
-            logging.error(f"Error listing files after conversion error: {list_error}")
+        if images:
+            logging.info(f"Successfully converted PDF to {len(images)} images with alternative settings")
+            
+            # Rename files to simple slide_1.png, slide_2.png etc.
+            for i, img_path in enumerate(images):
+                new_name = os.path.join(output_folder, f"slide_{i + 1}.{image_format.lower()}")
+                try:
+                    os.rename(img_path, new_name)
+                    image_paths.append(new_name)
+                    logging.debug(f"Renamed {img_path} to {new_name}")
+                except Exception as rename_error:
+                    logging.error(f"Error renaming {img_path} to {new_name}: {rename_error}")
+                    # If renaming fails, still add the original path to the list
+                    image_paths.append(img_path)
+            
+            return image_paths
+        else:
+            logging.warning("No images returned with alternative settings")
+    except Exception as e:
+        logging.error(f"Error with alternative settings: {e}")
+    
+    # Approach 3: Check if any images were created despite errors
+    try:
+        new_files = set(os.listdir(output_folder)) - existing_files
+        image_files = [f for f in new_files if f.endswith(f'.{image_format.lower()}')]
         
-        return []
+        if image_files:
+            logging.info(f"Found {len(image_files)} image files in output directory despite errors:")
+            
+            # Sort the image files by name
+            image_files.sort()
+            
+            # Rename files to simple slide_1.png, slide_2.png etc.
+            for i, img_file in enumerate(image_files):
+                img_path = os.path.join(output_folder, img_file)
+                new_name = os.path.join(output_folder, f"slide_{i + 1}.{image_format.lower()}")
+                
+                try:
+                    os.rename(img_path, new_name)
+                    image_paths.append(new_name)
+                    logging.debug(f"Renamed {img_path} to {new_name}")
+                except Exception as rename_error:
+                    logging.error(f"Error renaming {img_path} to {new_name}: {rename_error}")
+                    # If renaming fails, still add the original path to the list
+                    image_paths.append(img_path)
+            
+            return image_paths
+    except Exception as e:
+        logging.error(f"Error checking for created images: {e}")
+    
+    logging.error("Failed to convert PDF to images with all methods")
+    return []
 
 def generate_slide_images(latex_file_path: str, config: Dict) -> List[str]:
     """Orchestrates LaTeX compilation and PDF to image conversion."""
