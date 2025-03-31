@@ -38,39 +38,57 @@ def compile_latex_to_pdf(latex_file_path: str, output_dir: str) -> Optional[str]
     logging.info(f"Compiling {latex_file_path} to PDF in {output_dir}...")
     
     # Run pdflatex twice for references/toc etc.
-    for _ in range(2):
+    for i in range(2):
         try:
-            # Use cwd=output_dir to keep aux files etc. contained
             # Use -output-directory to specify where PDF goes
+            # Remove check=True to avoid raising an exception on non-zero exit code
             process = subprocess.run(
                 ['pdflatex', '-interaction=nonstopmode', f'-output-directory={output_dir}', latex_file_path],
-                capture_output=True, text=True, check=True, timeout=60
+                capture_output=True, text=True, timeout=60
             )
-            logging.debug(f"pdflatex run stdout:\n{process.stdout}")
-            logging.debug(f"pdflatex run stderr:\n{process.stderr}")
+            
+            # Log stdout/stderr for debugging
+            if process.stdout:
+                logging.debug(f"pdflatex run stdout:\n{process.stdout}")
+            if process.stderr:
+                logging.debug(f"pdflatex run stderr:\n{process.stderr}")
+            
+            # Check if the process was successful
+            if process.returncode != 0:
+                logging.warning(f"pdflatex returned non-zero exit code: {process.returncode}")
+                # Continue anyway, as pdflatex might still have generated a usable PDF
+                # despite warnings or non-fatal errors
+        
         except FileNotFoundError:
             logging.error("pdflatex command not found. Please ensure LaTeX distribution (like TeX Live) is installed and in PATH.")
             return None
-        except subprocess.CalledProcessError as e:
-            logging.error(f"pdflatex compilation failed. Error:\n{e.stderr}")
-            # Attempt to read the log file for more details
-            log_file = os.path.join(output_dir, f"{base_name}.log")
-            if os.path.exists(log_file):
+        except subprocess.TimeoutExpired:
+            logging.error("pdflatex compilation timed out.")
+            return None
+        except Exception as e:
+            logging.error(f"An unexpected error occurred during pdflatex compilation: {e}")
+            # Continue to check if PDF was generated despite the error
+    
+    # Check if the PDF was generated, regardless of pdflatex exit code
+    if os.path.exists(pdf_path):
+        # Check if the PDF file is valid (not empty)
+        if os.path.getsize(pdf_path) > 0:
+            logging.info(f"PDF successfully generated: {pdf_path}")
+            return pdf_path
+        else:
+            logging.error(f"PDF file was generated but is empty: {pdf_path}")
+            return None
+    else:
+        # If PDF doesn't exist, try to read the log file for more details
+        log_file = os.path.join(output_dir, f"{base_name}.log")
+        if os.path.exists(log_file):
+            try:
                 with open(log_file, 'r') as lf:
                     log_content = lf.read()
                 logging.error(f"pdflatex log file ({log_file}):\n{log_content[-1000:]}") # Show last 1000 chars
-            return None
-        except subprocess.TimeoutExpired:
-             logging.error("pdflatex compilation timed out.")
-             return None
-        except Exception as e:
-            logging.error(f"An unexpected error occurred during pdflatex compilation: {e}")
-            return None
-
-    if os.path.exists(pdf_path):
-        logging.info(f"PDF successfully generated: {pdf_path}")
-        return pdf_path
-    else:
+            except Exception as e:
+                logging.error(f"Error reading log file: {e}")
+        
         logging.error(f"PDF file was not found after compilation: {pdf_path}")
         return None
 
