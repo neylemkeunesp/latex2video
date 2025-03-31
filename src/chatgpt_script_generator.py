@@ -102,13 +102,44 @@ def clean_chatgpt_response(response: str) -> str:
     
     return response
 
-def format_slide_for_chatgpt(slide: Slide) -> str:
+def format_slide_for_chatgpt(slide: Slide, all_slides: List[Slide] = None, slide_index: int = None) -> str:
     """
     Format a slide's content for sending to ChatGPT-4o.
     Includes special handling for mathematical formulas and title pages.
+    
+    Args:
+        slide: The current slide to format
+        all_slides: Optional list of all slides in the presentation
+        slide_index: Optional index of the current slide in the all_slides list
     """
     # Start with the slide title
     formatted_content = f"# {slide.title}\n\n"
+    
+    # Add sequence information if available
+    if all_slides and slide_index is not None:
+        total_slides = len(all_slides)
+        formatted_content += f"## Informação de Sequência\n"
+        formatted_content += f"- Este é o slide {slide_index + 1} de {total_slides}.\n"
+        
+        # Add information about previous slide if not the first slide
+        if slide_index > 0:
+            prev_slide = all_slides[slide_index - 1]
+            formatted_content += f"- Slide anterior: \"{prev_slide.title}\"\n"
+            
+            # Check if this slide has the same title as the previous one
+            if slide.title == prev_slide.title:
+                formatted_content += f"- Este slide é uma continuação do slide anterior com o mesmo título.\n"
+        
+        # Add information about next slide if not the last slide
+        if slide_index < total_slides - 1:
+            next_slide = all_slides[slide_index + 1]
+            formatted_content += f"- Próximo slide: \"{next_slide.title}\"\n"
+            
+            # Check if the next slide has the same title as this one
+            if slide.title == next_slide.title:
+                formatted_content += f"- O próximo slide é uma continuação deste slide com o mesmo título.\n"
+        
+        formatted_content += "\n"
     
     # Process the content
     content = slide.content
@@ -212,6 +243,15 @@ def format_slide_for_chatgpt(slide: Slide) -> str:
     # Add instructions for ChatGPT-4o
     formatted_content += "\n\n---\n\n"
     formatted_content += "Por favor, crie um script de narração para este slide que explique o conteúdo de forma clara e concisa. "
+    
+    # Add special instructions for continuation slides
+    if all_slides and slide_index is not None and slide_index > 0:
+        prev_slide = all_slides[slide_index - 1]
+        if slide.title == prev_slide.title:
+            formatted_content += "Este slide é uma continuação do slide anterior com o mesmo título. "
+            formatted_content += "Sua narração deve continuar naturalmente a partir do slide anterior, sem repetir a introdução ou o contexto já apresentado. "
+            formatted_content += "Use frases de transição como 'Continuando...', 'Além disso...', 'Adicionalmente...', etc. "
+    
     formatted_content += "Dê atenção especial às fórmulas matemáticas, explicando-as de maneira simples e compreensível. "
     formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
     formatted_content += "Limite-se apenas ao conteúdo que está explicitamente mostrado no slide. "
@@ -223,6 +263,9 @@ def generate_chatgpt_prompts(latex_file_path: str) -> List[Dict[str, str]]:
     """
     Generate prompts for ChatGPT-4o from a LaTeX presentation file.
     Returns a list of dictionaries with slide number, title, and formatted content.
+    
+    Includes sequence information for each slide to help ChatGPT understand
+    the context and create more coherent narration between slides.
     """
     logging.info(f"Parsing LaTeX file: {latex_file_path}")
     slides = parse_latex_file(latex_file_path)
@@ -232,8 +275,9 @@ def generate_chatgpt_prompts(latex_file_path: str) -> List[Dict[str, str]]:
         return []
     
     prompts = []
-    for slide in slides:
-        formatted_content = format_slide_for_chatgpt(slide)
+    for i, slide in enumerate(slides):
+        # Pass the slide index and all slides to include sequence information
+        formatted_content = format_slide_for_chatgpt(slide, slides, i)
         prompts.append({
             "slide_number": slide.frame_number,
             "title": slide.title,
