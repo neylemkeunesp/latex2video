@@ -12,7 +12,7 @@ from openai import OpenAI
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.latex_parser import parse_latex_file, Slide
-from src.chatgpt_script_generator import format_slide_for_chatgpt
+from src.chatgpt_script_generator import format_slide_for_chatgpt, clean_chatgpt_response
 from src.image_generator import generate_slide_images
 from src.audio_generator import generate_all_audio
 from src.simple_video_assembler import assemble_video
@@ -66,7 +66,7 @@ def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> st
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are an expert educational content creator who specializes in creating clear, concise narration scripts for educational videos. You explain complex concepts in an accessible way, with special attention to mathematical formulas."},
+                {"role": "system", "content": "You are an expert educational content creator who specializes in creating clear, concise narration scripts for educational videos. You explain complex concepts in an accessible way, with special attention to mathematical formulas. DO NOT include any markers like '[Início do Script de Narração]' or '[Fim do Script de Narração]' in your response. Just provide the narration script directly."},
                 {"role": "user", "content": prompt}
             ],
             temperature=temperature,
@@ -90,11 +90,18 @@ def generate_all_scripts(slides: List[Slide], client: OpenAI, config: Dict) -> L
         prompt = format_slide_for_chatgpt(slide)
         
         # Generate script with OpenAI
-        script = generate_script_with_openai(client, prompt, config)
+        raw_script = generate_script_with_openai(client, prompt, config)
         
-        if script:
-            scripts.append(script)
-            logging.info(f"Successfully generated script for slide {i+1}")
+        if raw_script:
+            # Clean up the response to remove any ChatGPT-specific formatting or markers
+            cleaned_script = clean_chatgpt_response(raw_script)
+            
+            if cleaned_script:
+                scripts.append(cleaned_script)
+                logging.info(f"Successfully generated and cleaned script for slide {i+1}")
+            else:
+                logging.warning(f"Script for slide {i+1} was empty after cleaning. Using placeholder.")
+                scripts.append(f"Script for slide {i+1} could not be generated properly.")
         else:
             logging.error(f"Failed to generate script for slide {i+1}")
             # Add a placeholder script to maintain alignment with slides
@@ -121,6 +128,183 @@ def save_scripts_to_files(scripts: List[str], output_dir: str) -> List[str]:
         logging.info(f"Saved script for slide {i+1} to {file_path}")
     
     return file_paths
+
+def process_scripts_for_narration(scripts_dir: str) -> bool:
+    """Process scripts to prepare them for narration.
+    
+    This function:
+    1. Removes any remaining LaTeX control characters
+    2. Replaces 'y' with 'ipsilon' for proper Portuguese pronunciation
+    3. Tests the processed scripts to ensure they're ready for narration
+    """
+    import re
+    import glob
+    
+    logging.info("Processing scripts for narration...")
+    
+    # Step 1: Remove LaTeX control characters
+    logging.info("Step 1: Removing LaTeX control characters...")
+    try:
+        # Define function to clean LaTeX control characters
+        def clean_latex_control_chars(text):
+            # Remove LaTeX math delimiters and control characters
+            # Inline math delimiters: \( ... \) or $ ... $
+            text = re.sub(r'\\\((.*?)\\\)', r'\1', text, flags=re.DOTALL)
+            text = re.sub(r'\$(.*?)\$', r'\1', text, flags=re.DOTALL)
+            
+            # Display math delimiters: \[ ... \] or $$ ... $$
+            text = re.sub(r'\\\[(.*?)\\\]', r'\1', text, flags=re.DOTALL)
+            text = re.sub(r'\$\$(.*?)\$\$', r'\1', text, flags=re.DOTALL)
+            
+            # Remove LaTeX commands that might remain
+            text = re.sub(r'\\[a-zA-Z]+', '', text)  # Remove LaTeX commands like \lambda, \alpha, etc.
+            text = re.sub(r'\\[^a-zA-Z]', '', text)  # Remove LaTeX special characters like \{, \}, etc.
+            
+            return text
+        
+        # Find all response files
+        response_files = glob.glob(os.path.join(scripts_dir, "slide_*_response.txt"))
+        
+        if not response_files:
+            logging.error(f"No response files found in '{scripts_dir}'.")
+            return False
+        
+        # Clean each file
+        for file_path in sorted(response_files):
+            # Read the original content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # Clean the content
+            cleaned_content = clean_latex_control_chars(original_content)
+            
+            # Write the cleaned content back to the original file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(cleaned_content)
+            
+            logging.info(f"Cleaned LaTeX control characters from {os.path.basename(file_path)}")
+        
+        logging.info("Successfully removed LaTeX control characters from all scripts.")
+    
+    except Exception as e:
+        logging.error(f"Error removing LaTeX control characters: {e}")
+        return False
+    
+    # Step 2: Replace 'y' with 'ipsilon'
+    logging.info("Step 2: Replacing 'y' with 'ipsilon' for proper Portuguese pronunciation...")
+    try:
+        # Define function to replace 'y' with 'ipsilon'
+        def replace_y_with_ipsilon(text):
+            # Replace standalone 'y' (surrounded by spaces, punctuation, or at beginning/end)
+            # but not when it's part of a word
+            text = re.sub(r'(?<!\w)y(?!\w)', 'ipsilon', text)
+            
+            # Special cases for common mathematical expressions
+            text = re.sub(r'f\(x, y\)', 'f(x, ipsilon)', text)
+            text = re.sub(r'g\(x, y\)', 'g(x, ipsilon)', text)
+            text = re.sub(r'L\(x, y', 'L(x, ipsilon', text)  # Handle L(x, y, λ) case
+            
+            # Additional cases for mathematical expressions
+            text = re.sub(r'xy', 'x·ipsilon', text)  # Replace xy with x·ipsilon
+            text = re.sub(r'2y', '2·ipsilon', text)  # Replace 2y with 2·ipsilon
+            
+            return text
+        
+        # Find all response files
+        response_files = glob.glob(os.path.join(scripts_dir, "slide_*_response.txt"))
+        
+        # Process each file
+        for file_path in sorted(response_files):
+            # Read the original content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # Replace 'y' with 'ipsilon'
+            processed_content = replace_y_with_ipsilon(original_content)
+            
+            # Write the processed content back to the original file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(processed_content)
+            
+            logging.info(f"Replaced 'y' with 'ipsilon' in {os.path.basename(file_path)}")
+        
+        logging.info("Successfully replaced 'y' with 'ipsilon' in all scripts.")
+    
+    except Exception as e:
+        logging.error(f"Error replacing 'y' with 'ipsilon': {e}")
+        return False
+    
+    # Step 3: Test the processed scripts
+    logging.info("Step 3: Testing processed scripts...")
+    try:
+        # Define function to check for remaining issues
+        def check_for_issues(text):
+            issues = []
+            
+            # Check for LaTeX control characters
+            latex_patterns = [
+                r'\\[a-zA-Z]+',  # LaTeX commands like \lambda, \alpha, etc.
+                r'\\[\(\)\[\]]',  # Math delimiters \(, \), \[, \]
+                r'\\\{', r'\\\}',  # Escaped braces \{, \}
+                r'\\[,;]',  # Spacing commands \, \;
+                r'\$\$.*?\$\$',  # Display math $$...$$
+                r'\$.*?\$',  # Inline math $...$
+            ]
+            
+            for pattern in latex_patterns:
+                matches = re.findall(pattern, text)
+                if matches:
+                    issues.append(f"Found LaTeX control characters: {matches[:3]}")
+            
+            # Check for standalone 'y'
+            y_matches = re.findall(r'(?<!\w)y(?!\w)', text)
+            if y_matches:
+                issues.append(f"Found standalone 'y' characters: {y_matches[:3]}")
+            
+            # Check for 'xy' or '2y' patterns
+            xy_matches = re.findall(r'xy', text)
+            if xy_matches:
+                issues.append(f"Found 'xy' patterns: {xy_matches[:3]}")
+            
+            two_y_matches = re.findall(r'2y', text)
+            if two_y_matches:
+                issues.append(f"Found '2y' patterns: {two_y_matches[:3]}")
+            
+            return issues
+        
+        # Find all response files
+        response_files = glob.glob(os.path.join(scripts_dir, "slide_*_response.txt"))
+        
+        all_clean = True
+        
+        # Test each file
+        for file_path in sorted(response_files):
+            # Read the file content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Check for issues
+            issues = check_for_issues(content)
+            
+            if issues:
+                logging.warning(f"Issues found in {os.path.basename(file_path)}:")
+                for issue in issues:
+                    logging.warning(f"  - {issue}")
+                all_clean = False
+            else:
+                logging.info(f"No issues found in {os.path.basename(file_path)}")
+        
+        if all_clean:
+            logging.info("All scripts are clean and ready for narration.")
+        else:
+            logging.warning("Some scripts have issues that may affect narration quality.")
+            # We continue with the process, but log the warning
+        
+        return True
+    
+    except Exception as e:
+        logging.error(f"Error testing processed scripts: {e}")
+        return False
 
 def main():
     """Main function to automate the entire video generation process."""
@@ -184,15 +368,26 @@ def main():
         logging.error("Failed to generate slide images. Exiting.")
         return
     
-    # Adjust logic if title page image exists but wasn't parsed as a content slide
-    if len(image_paths) == len(slides) + 1:
-        logging.info("Detected an extra image, likely the title page. Excluding it from video content.")
-        content_image_paths = image_paths[1:]
-    elif len(image_paths) == len(slides):
+    # Check if the number of images matches the number of slides
+    if len(image_paths) == len(slides):
+        logging.info("Number of images matches number of slides. All slides will be included in the video.")
         content_image_paths = image_paths
     else:
-        logging.error(f"Mismatch after image generation: {len(image_paths)} images vs {len(slides)} parsed content slides. Exiting.")
-        return
+        logging.warning(f"Mismatch between images ({len(image_paths)}) and slides ({len(slides)}). Attempting to adjust...")
+        
+        # If we have more images than slides, use only the first len(slides) images
+        if len(image_paths) > len(slides):
+            logging.info(f"Using only the first {len(slides)} images.")
+            content_image_paths = image_paths[:len(slides)]
+        # If we have more slides than images, use only the first len(image_paths) slides
+        elif len(slides) > len(image_paths):
+            logging.info(f"Using only the first {len(image_paths)} slides for narration.")
+            slides = slides[:len(image_paths)]
+            content_image_paths = image_paths
+        else:
+            # This should never happen, but just in case
+            logging.error("Unexpected error in image-slide matching. Exiting.")
+            return
     
     # --- 5. Generate Scripts with OpenAI ---
     logging.info("Step 5: Generating scripts with OpenAI...")
@@ -201,7 +396,56 @@ def main():
     # Save scripts if requested
     if args.save_scripts:
         logging.info(f"Saving scripts to {scripts_dir}...")
-        save_scripts_to_files(scripts, scripts_dir)
+        script_paths = save_scripts_to_files(scripts, scripts_dir)
+        
+        # --- 5a. Process Scripts for Narration ---
+        logging.info("Step 5a: Processing scripts for narration...")
+        if not process_scripts_for_narration(scripts_dir):
+            logging.error("Failed to process scripts for narration. Exiting.")
+            return
+        
+        # Read the processed scripts back
+        processed_scripts = []
+        for script_path in script_paths:
+            try:
+                with open(script_path, 'r', encoding='utf-8') as f:
+                    processed_scripts.append(f.read())
+            except Exception as e:
+                logging.error(f"Error reading processed script {script_path}: {e}")
+                return
+        
+        # Use the processed scripts instead of the original ones
+        scripts = processed_scripts
+    else:
+        # If scripts are not saved to files, process them in memory
+        logging.info("Processing scripts in memory...")
+        # Process each script to remove LaTeX control characters and replace 'y' with 'ipsilon'
+        import re
+        
+        def process_script(text):
+            # Remove LaTeX control characters
+            text = re.sub(r'\\\((.*?)\\\)', r'\1', text, flags=re.DOTALL)
+            text = re.sub(r'\$(.*?)\$', r'\1', text, flags=re.DOTALL)
+            text = re.sub(r'\\\[(.*?)\\\]', r'\1', text, flags=re.DOTALL)
+            text = re.sub(r'\$\$(.*?)\$\$', r'\1', text, flags=re.DOTALL)
+            text = re.sub(r'\\[a-zA-Z]+', '', text)
+            text = re.sub(r'\\[^a-zA-Z]', '', text)
+            
+            # Replace 'y' with 'ipsilon'
+            text = re.sub(r'(?<!\w)y(?!\w)', 'ipsilon', text)
+            text = re.sub(r'f\(x, y\)', 'f(x, ipsilon)', text)
+            text = re.sub(r'g\(x, y\)', 'g(x, ipsilon)', text)
+            text = re.sub(r'L\(x, y', 'L(x, ipsilon', text)
+            text = re.sub(r'xy', 'x·ipsilon', text)
+            text = re.sub(r'2y', '2·ipsilon', text)
+            
+            return text
+        
+        processed_scripts = []
+        for script in scripts:
+            processed_scripts.append(process_script(script))
+        
+        scripts = processed_scripts
     
     # --- 6. Generate Audio Files ---
     logging.info("Step 6: Generating audio files from scripts...")
