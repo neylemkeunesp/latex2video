@@ -82,12 +82,25 @@ def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> st
 def generate_all_scripts(slides: List[Slide], client: OpenAI, config: Dict) -> List[str]:
     """Generate scripts for all slides using the OpenAI API."""
     scripts = []
+    prompts = []
+    
+    # Create directory for prompts
+    output_dir = config.get('output_dir', 'output')
+    prompts_dir = os.path.join(output_dir, 'chatgpt_prompts')
+    os.makedirs(prompts_dir, exist_ok=True)
     
     for i, slide in enumerate(slides):
         logging.info(f"Generating script for slide {i+1}/{len(slides)}: {slide.title}")
         
         # Format the slide content for ChatGPT
-        prompt = format_slide_for_chatgpt(slide)
+        prompt = format_slide_for_chatgpt(slide, slides, i)
+        
+        # Save the prompt to a file
+        prompt_file_name = f"slide_{i+1}_prompt.txt"
+        prompt_file_path = os.path.join(prompts_dir, prompt_file_name)
+        with open(prompt_file_path, 'w', encoding='utf-8') as f:
+            f.write(prompt)
+        logging.info(f"Saved prompt for slide {i+1} to {prompt_file_path}")
         
         # Generate script with OpenAI
         raw_script = generate_script_with_openai(client, prompt, config)
