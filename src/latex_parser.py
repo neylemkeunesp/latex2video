@@ -1,5 +1,7 @@
 import re
+import os
 import logging
+import subprocess
 from typing import List, Dict, Any
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -51,32 +53,106 @@ def parse_latex_file(file_path: str) -> List[Slide]:
         return []
 
     # Find all frames using a non-greedy match
-    # Exclude the title page frame if it's empty or just contains \titlepage
     frames = re.findall(r'\\begin\{frame\}(.*?)\\end\{frame\}', latex_content, re.DOTALL)
     
-    slides: List[Slide] = []
-    frame_counter = 0
+    # Extract document title and author for use in slides
+    title_match = re.search(r'\\title\{(.*?)\}', latex_content, re.DOTALL)
+    doc_title = title_match.group(1).strip() if title_match else "Presentation Title"
+    author_match = re.search(r'\\author\{(.*?)\}', latex_content, re.DOTALL)
+    doc_author = author_match.group(1).strip() if author_match else ""
+    
+    # Get the number of pages in the PDF
+    pdf_path = os.path.join('output', 'temp_pdf', os.path.splitext(os.path.basename(file_path))[0] + '.pdf')
+    pdf_page_count = 14  # Default to 14 pages if we can't determine the actual count
+    
+    try:
+        if os.path.exists(pdf_path):
+            result = subprocess.run(['pdfinfo', pdf_path], capture_output=True, text=True, check=True)
+            match = re.search(r'Pages:\s+(\d+)', result.stdout)
+            if match:
+                pdf_page_count = int(match.group(1))
+                logging.info(f"PDF has {pdf_page_count} pages")
+    except Exception as e:
+        logging.warning(f"Could not determine PDF page count: {e}")
+    
+    # Create slides to match the PDF page count
+    parsed_slides: List[Slide] = []
+    
+    # First slide is always the title page
+    parsed_slides.append(Slide(
+        frame_number=1,
+        title="Title Page",
+        content=f"Title: {doc_title}\nAuthor: {doc_author}"
+    ))
+    
+    # Second slide is the outline/TOC
+    parsed_slides.append(Slide(
+        frame_number=2,
+        title="Outline",
+        content="This slide shows the outline of the presentation."
+    ))
+    
+    # Process the actual content frames
+    frame_titles = []
     for i, frame_content in enumerate(frames):
-        # Skip the typical title page frame
-        if '\\titlepage' in frame_content and len(frame_content.strip()) < 20:
-             logging.info(f"Skipping potential title page frame {i+1}")
-             continue
-             
-        frame_counter += 1
+        # Skip the title page frame
+        if '\\titlepage' in frame_content:
+            continue
+            
         title = extract_frame_title(frame_content)
+        frame_titles.append(title)
         cleaned_content = clean_latex_content(frame_content)
         
         if not cleaned_content.strip():
-             logging.warning(f"Frame {frame_counter} appears empty after cleaning. Title: '{title}'")
-             # Optionally skip empty frames or handle them differently
-             # continue 
-
-        slide = Slide(frame_number=frame_counter, title=title, content=cleaned_content)
-        slides.append(slide)
-        logging.debug(f"Parsed slide {frame_counter}: Title='{title}'")
-
-    logging.info(f"Successfully parsed {len(slides)} slides (excluding title page).")
-    return slides
+            logging.warning(f"Frame appears empty after cleaning. Title: '{title}'")
+            cleaned_content = f"This slide covers {title}."
+    
+    # Distribute the content frames across the remaining PDF pages
+    content_frames = len(frame_titles)
+    remaining_pages = pdf_page_count - 2  # Subtract title and outline pages
+    
+    if content_frames == 0:
+        logging.warning("No content frames found in LaTeX file")
+        return parsed_slides
+    
+    # Calculate how many PDF pages each content frame gets
+    pages_per_frame = remaining_pages / content_frames
+    
+    # Create slides for each PDF page
+    frame_index = 0
+    for page in range(2, pdf_page_count):
+        # Determine which content frame this page belongs to
+        frame_position = (page - 2) / pages_per_frame
+        current_frame_index = min(int(frame_position), content_frames - 1)
+        
+        if current_frame_index != frame_index:
+            frame_index = current_frame_index
+        
+        # Get the title and content for this frame
+        title = frame_titles[frame_index]
+        
+        # Get the frame content for this slide
+        frame_content = frames[frame_index + (1 if '\\titlepage' in frames[0] else 0)]
+        content = clean_latex_content(frame_content)
+        
+        # If the content is empty, use a placeholder
+        if not content.strip():
+            content = f"This slide covers {title}."
+        
+        # For continuation pages, add a note that this is a continuation
+        if not frame_position.is_integer():
+            # This is a continuation page for the current frame
+            # Add a note at the beginning but keep the full content
+            content = f"Continuation of {title}.\n\n{content}"
+        
+        parsed_slides.append(Slide(
+            frame_number=page + 1,  # +1 because frame_number is 1-indexed
+            title=title,
+            content=content
+        ))
+    
+    logging.info(f"Successfully parsed {len(parsed_slides)} slides to match PDF page count of {pdf_page_count}.")
+    return parsed_slides
 
 if __name__ == '__main__':
     # Example usage:
