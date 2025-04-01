@@ -15,44 +15,6 @@ from src.chatgpt_script_generator import clean_chatgpt_response
 
 # Audio and video modules are imported only when needed
 AUDIO_VIDEO_AVAILABLE = False
-#!/usr/bin/env python3
-import os
-import sys
-import logging
-import yaml
-import argparse
-from typing import List, Dict
-
-# Add the parent directory to the path so we can import from src
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.latex_parser import parse_latex_file, Slide
-from src.image_generator import generate_slide_images
-from src.chatgpt_script_generator import clean_chatgpt_response
-
-#!/usr/bin/env python3
-import os
-import sys
-import logging
-import yaml
-import argparse
-from typing import List, Dict
-
-# Add the parent directory to the path so we can import from src
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.latex_parser import parse_latex_file, Slide
-from src.image_generator import generate_slide_images
-from src.chatgpt_script_generator import clean_chatgpt_response
-
-# Import these conditionally to avoid dependency issues
-try:
-    from src.audio_generator import generate_all_audio
-    from src.simple_video_assembler import assemble_video
-    AUDIO_VIDEO_AVAILABLE = True
-except ImportError:
-    logging.warning("Audio and video modules not available. Will only process scripts.")
-    AUDIO_VIDEO_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -92,8 +54,11 @@ def load_chatgpt_scripts(responses_dir: str) -> List[str]:
         logging.error(f"Responses directory '{responses_dir}' not found.")
         return []
     
-    # Get all response files
-    response_files = sorted([f for f in os.listdir(responses_dir) if f.endswith("_response.txt")])
+    # Get all response files and sort them numerically by slide number
+    response_files = [f for f in os.listdir(responses_dir) if f.endswith("_response.txt")]
+    # Extract slide number from filename and sort numerically
+    response_files.sort(key=lambda f: int(f.split('_')[1]))
+    
     if not response_files:
         logging.error(f"No response files found in '{responses_dir}'.")
         return []
@@ -225,23 +190,32 @@ def main():
             logging.info("Skipping audio and video generation due to missing dependencies.")
         return
     
-    # --- 5. Generate Audio Files ---
-    logging.info("Step 4: Generating audio files from ChatGPT-4o scripts...")
-    audio_paths = generate_all_audio(scripts, config)
-    if not audio_paths:
-        logging.error("Failed to generate audio files. Exiting.")
+    # Try to import audio and video modules only if needed
+    try:
+        from src.audio_generator import generate_all_audio
+        from src.simple_video_assembler import assemble_video
+        
+        # --- 5. Generate Audio Files ---
+        logging.info("Step 4: Generating audio files from ChatGPT-4o scripts...")
+        audio_paths = generate_all_audio(scripts, config)
+        if not audio_paths:
+            logging.error("Failed to generate audio files. Exiting.")
+            return
+        
+        # --- 6. Assemble Final Video ---
+        logging.info("Step 5: Assembling final video...")
+        final_video_path = assemble_video(content_image_paths, audio_paths, config)
+        if not final_video_path:
+            logging.error("Failed to assemble the final video. Exiting.")
+            return
+        
+        logging.info(f"--- Video Generation Complete ---")
+        logging.info(f"Final video saved to: {final_video_path}")
+        print(f"\nSuccess! Final video available at: {final_video_path}")
+    except ImportError as e:
+        logging.error(f"Failed to import audio/video modules: {e}")
+        logging.info("Skipping audio and video generation due to missing dependencies.")
         return
-    
-    # --- 6. Assemble Final Video ---
-    logging.info("Step 5: Assembling final video...")
-    final_video_path = assemble_video(content_image_paths, audio_paths, config)
-    if not final_video_path:
-        logging.error("Failed to assemble the final video. Exiting.")
-        return
-    
-    logging.info(f"--- Video Generation Complete ---")
-    logging.info(f"Final video saved to: {final_video_path}")
-    print(f"\nSuccess! Final video available at: {final_video_path}")
 
 if __name__ == "__main__":
     main()

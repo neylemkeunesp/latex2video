@@ -22,8 +22,11 @@ def load_chatgpt_scripts(responses_dir: str, use_cleaned: bool = False):
         logging.error(f"Responses directory '{responses_dir}' not found.")
         return []
     
-    # Get all response files
-    response_files = sorted([f for f in os.listdir(responses_dir) if f.endswith("_response.txt")])
+    # Get all response files and sort them numerically by slide number
+    response_files = [f for f in os.listdir(responses_dir) if f.endswith("_response.txt")]
+    # Extract slide number from filename and sort numerically
+    response_files.sort(key=lambda f: int(f.split('_')[1]))
+    
     if not response_files:
         logging.error(f"No response files found in '{responses_dir}'.")
         return []
