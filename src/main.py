@@ -73,18 +73,28 @@ def main(latex_file: str, config_file: str):
     # during PDF generation (it usually isn't), there might be one extra image.
     # We need to align images with parsed slides. Let's assume the first image is title page if needed.
     
-    # Adjust logic if title page image exists but wasn't parsed as a content slide
-    if len(image_paths) == len(slides) + 1:
-         logging.info("Detected an extra image, likely the title page. Excluding it from video content.")
-         # Assuming the first image corresponds to the skipped title page frame
-         content_image_paths = image_paths[1:] 
-    elif len(image_paths) == len(slides):
-         content_image_paths = image_paths
+    # Check if the number of images matches the number of slides
+    if len(image_paths) == len(slides):
+        logging.info("Number of images matches number of slides. All slides will be included in the video.")
+        content_image_paths = image_paths
     else:
-         logging.error(f"Mismatch after image generation: {len(image_paths)} images vs {len(slides)} parsed content slides. Exiting.")
-         return
+        logging.warning(f"Mismatch between images ({len(image_paths)}) and slides ({len(slides)}). Attempting to adjust...")
+        
+        # If we have more images than slides, use only the first len(slides) images
+        if len(image_paths) > len(slides):
+            logging.info(f"Using only the first {len(slides)} images.")
+            content_image_paths = image_paths[:len(slides)]
+        # If we have more slides than images, use only the first len(image_paths) slides
+        elif len(slides) > len(image_paths):
+            logging.info(f"Using only the first {len(image_paths)} slides for narration.")
+            slides = slides[:len(image_paths)]
+            content_image_paths = image_paths
+        else:
+            # This should never happen, but just in case
+            logging.error("Unexpected error in image-slide matching. Exiting.")
+            return
          
-    logging.info(f"Successfully generated {len(content_image_paths)} content slide images.")
+    logging.info(f"Successfully prepared {len(content_image_paths)} slides with matching images.")
 
 
     # --- 4. Generate Narration Scripts ---

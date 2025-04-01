@@ -11,8 +11,48 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.latex_parser import parse_latex_file, Slide
 from src.image_generator import generate_slide_images
-from src.audio_generator import generate_all_audio
-from src.simple_video_assembler import assemble_video
+from src.chatgpt_script_generator import clean_chatgpt_response
+
+# Audio and video modules are imported only when needed
+AUDIO_VIDEO_AVAILABLE = False
+#!/usr/bin/env python3
+import os
+import sys
+import logging
+import yaml
+import argparse
+from typing import List, Dict
+
+# Add the parent directory to the path so we can import from src
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.latex_parser import parse_latex_file, Slide
+from src.image_generator import generate_slide_images
+from src.chatgpt_script_generator import clean_chatgpt_response
+
+#!/usr/bin/env python3
+import os
+import sys
+import logging
+import yaml
+import argparse
+from typing import List, Dict
+
+# Add the parent directory to the path so we can import from src
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.latex_parser import parse_latex_file, Slide
+from src.image_generator import generate_slide_images
+from src.chatgpt_script_generator import clean_chatgpt_response
+
+# Import these conditionally to avoid dependency issues
+try:
+    from src.audio_generator import generate_all_audio
+    from src.simple_video_assembler import assemble_video
+    AUDIO_VIDEO_AVAILABLE = True
+except ImportError:
+    logging.warning("Audio and video modules not available. Will only process scripts.")
+    AUDIO_VIDEO_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -37,8 +77,16 @@ def load_config(config_path: str) -> dict:
         return {}
 
 def load_chatgpt_scripts(responses_dir: str) -> List[str]:
-    """Load ChatGPT-4o generated scripts from response files."""
+    """Load ChatGPT-4o generated scripts from response files and clean them."""
     logging.info(f"Loading ChatGPT-4o scripts from {responses_dir}")
+    
+    # Check if we have cleaned responses available
+    cleaned_dir = os.path.join(os.path.dirname(responses_dir), "cleaned_responses")
+    use_cleaned = os.path.exists(cleaned_dir) and os.listdir(cleaned_dir)
+    
+    if use_cleaned:
+        logging.info(f"Using pre-cleaned responses from {cleaned_dir}")
+        responses_dir = cleaned_dir
     
     if not os.path.exists(responses_dir):
         logging.error(f"Responses directory '{responses_dir}' not found.")
@@ -56,8 +104,18 @@ def load_chatgpt_scripts(responses_dir: str) -> List[str]:
         try:
             with open(response_path, 'r', encoding='utf-8') as f:
                 script = f.read().strip()
-                scripts.append(script)
-                logging.info(f"Loaded script from {response_file}")
+                
+                # If we're not using pre-cleaned responses, clean them now
+                if not use_cleaned:
+                    script = clean_chatgpt_response(script)
+                    logging.info(f"Cleaned script from {response_file}")
+                
+                if script:
+                    scripts.append(script)
+                    logging.info(f"Loaded script from {response_file}")
+                else:
+                    logging.warning(f"Script from {response_file} was empty after cleaning. Using placeholder.")
+                    scripts.append(f"Script for slide could not be generated properly.")
         except Exception as e:
             logging.error(f"Error reading response file {response_path}: {e}")
     
@@ -69,6 +127,7 @@ def main():
     parser.add_argument("latex_file", help="Path to the input LaTeX (.tex) file.")
     parser.add_argument("-c", "--config", default="config/config.yaml", help="Path to the configuration YAML file.")
     parser.add_argument("-r", "--responses", default="output/chatgpt_responses", help="Path to the directory containing ChatGPT-4o responses.")
+    parser.add_argument("--skip-audio-video", action="store_true", help="Skip audio and video generation, just process scripts.")
     
     args = parser.parse_args()
     
@@ -120,15 +179,26 @@ def main():
         logging.error("Failed to generate slide images. Exiting.")
         return
     
-    # Adjust logic if title page image exists but wasn't parsed as a content slide
-    if len(image_paths) == len(slides) + 1:
-        logging.info("Detected an extra image, likely the title page. Excluding it from video content.")
-        content_image_paths = image_paths[1:]
-    elif len(image_paths) == len(slides):
+    # Check if the number of images matches the number of slides
+    if len(image_paths) == len(slides):
+        logging.info("Number of images matches number of slides. All slides will be included in the video.")
         content_image_paths = image_paths
     else:
-        logging.error(f"Mismatch after image generation: {len(image_paths)} images vs {len(slides)} parsed content slides. Exiting.")
-        return
+        logging.warning(f"Mismatch between images ({len(image_paths)}) and slides ({len(slides)}). Attempting to adjust...")
+        
+        # If we have more images than slides, use only the first len(slides) images
+        if len(image_paths) > len(slides):
+            logging.info(f"Using only the first {len(slides)} images.")
+            content_image_paths = image_paths[:len(slides)]
+        # If we have more slides than images, use only the first len(image_paths) slides
+        elif len(slides) > len(image_paths):
+            logging.info(f"Using only the first {len(image_paths)} slides for narration.")
+            slides = slides[:len(image_paths)]
+            content_image_paths = image_paths
+        else:
+            # This should never happen, but just in case
+            logging.error("Unexpected error in image-slide matching. Exiting.")
+            return
     
     # --- 4. Load ChatGPT-4o Scripts ---
     logging.info("Step 3: Loading ChatGPT-4o scripts...")
@@ -140,6 +210,20 @@ def main():
     if len(scripts) != len(slides):
         logging.warning(f"Mismatch between number of scripts ({len(scripts)}) and slides ({len(slides)}).")
         logging.warning("This may cause issues with audio-slide synchronization.")
+    
+    # Print the first 100 characters of each script
+    print("\nLoaded scripts:")
+    for i, script in enumerate(scripts):
+        print(f"\n--- Script {i+1}/{len(scripts)} ---")
+        print(f"{script[:100]}...")
+    
+    # Skip audio and video generation if requested or not available
+    if args.skip_audio_video or not AUDIO_VIDEO_AVAILABLE:
+        if args.skip_audio_video:
+            logging.info("Skipping audio and video generation as requested.")
+        else:
+            logging.info("Skipping audio and video generation due to missing dependencies.")
+        return
     
     # --- 5. Generate Audio Files ---
     logging.info("Step 4: Generating audio files from ChatGPT-4o scripts...")

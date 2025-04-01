@@ -6,8 +6,9 @@ video:
   background_color: "#FFFFFF"
 
 elevenlabs:
-  api_key: "YOUR_ELEVENLABS_API_KEY"
-  voice_id: "EXAVITQu4vr4xnSDxMaL"  # Sarah's voice ID from available voices
+  api_key: "sk_13838f9372f1ac7dbc198b656970512a970da4bb8cba312f"
+#  voice_id: "EXAVITQu4vr4xnSDxMaL"  # Sarah's voice ID from available voices
+  voice_id: "qt1bLo3nJpkn2qzf2CT2"  # Ney´s voice ID from available voices
   model_id: "eleven_multilingual_v2"  # Better for Portuguese
 
 latex:
@@ -21,7 +22,7 @@ narration:
   math_pause: 0.5  # Extra pause after mathematical expressions
 
 openai:
-  api_key: "YOUR_OPENAI_API_KEY"  # Add your OpenAI API key here
+  api_key: "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"  # Add your OpenAI API key here
   model: "gpt-4o"  # Model to use for script generation
   temperature: 0.7  # Controls randomness (0.0 to 1.0)
   max_tokens: 1000  # Maximum length of generated response

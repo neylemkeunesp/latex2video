@@ -134,8 +134,14 @@ def main():
     parser.add_argument("pdf_path", help="Path to the PDF file to convert")
     parser.add_argument("-o", "--output-dir", default="output/test_images", help="Output directory for images")
     parser.add_argument("-d", "--dpi", type=int, default=300, help="DPI for conversion (default: 300)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     
     args = parser.parse_args()
+    
+    # Set logging level based on debug flag
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.info("Debug logging enabled")
     
     # Check Poppler installation
     if not check_poppler_installation():
