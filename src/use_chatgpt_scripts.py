@@ -172,9 +172,18 @@ def main():
         logging.error("Failed to load ChatGPT-4o scripts. Exiting.")
         return
     
-    if len(scripts) != len(slides):
-        logging.warning(f"Mismatch between number of scripts ({len(scripts)}) and slides ({len(slides)}).")
-        logging.warning("This may cause issues with audio-slide synchronization.")
+    if len(scripts) != len(content_image_paths):
+        logging.warning(f"Mismatch between number of scripts ({len(scripts)}) and images ({len(content_image_paths)}).")
+        logging.warning("Adjusting to ensure audio-slide synchronization...")
+        
+        # If we have more images than scripts, use only the first len(scripts) images
+        if len(content_image_paths) > len(scripts):
+            logging.info(f"Truncating image list from {len(content_image_paths)} to {len(scripts)} to match scripts.")
+            content_image_paths = content_image_paths[:len(scripts)]
+        # If we have more scripts than images, use only the first len(content_image_paths) scripts
+        elif len(scripts) > len(content_image_paths):
+            logging.info(f"Truncating script list from {len(scripts)} to {len(content_image_paths)} to match images.")
+            scripts = scripts[:len(content_image_paths)]
     
     # Print the first 100 characters of each script
     print("\nLoaded scripts:")
