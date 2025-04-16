@@ -5,7 +5,25 @@ import subprocess
 import tempfile
 from typing import List, Dict
 import yaml
-from natsort import natsorted
+import re
+
+# Try to import natsort, but provide a fallback if it's not available
+try:
+    from natsort import natsorted
+    
+    def natural_sort(file_list):
+        return natsorted(file_list)
+except ImportError:
+    # Fallback natural sorting implementation
+    def natural_sort(file_list):
+        def convert(text):
+            return int(text) if text.isdigit() else text.lower()
+        
+        def alphanum_key(key):
+            return [convert(c) for c in re.split('([0-9]+)', key)]
+        
+        return sorted(file_list, key=alphanum_key)
+
 from PIL import Image
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -53,8 +71,8 @@ def assemble_video(image_files: List[str], audio_files: List[str], config: Dict)
     logging.info(f"Assembling video: {len(image_files)} slides, Resolution: {resolution}, FPS: {fps}")
 
     # Sort files to ensure correct order
-    image_files = natsorted(image_files)
-    audio_files = natsorted(audio_files)
+    image_files = natural_sort(image_files)
+    audio_files = natural_sort(audio_files)
 
     # Create a temporary directory for processed files
     temp_dir = tempfile.mkdtemp()
@@ -172,8 +190,8 @@ if __name__ == "__main__":
         print("Failed to load configuration.")
         sys.exit(1)
     
-    image_files = natsorted([os.path.join(slides_dir, f) for f in os.listdir(slides_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
-    audio_files = natsorted([os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.mp3')])
+    image_files = natural_sort([os.path.join(slides_dir, f) for f in os.listdir(slides_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
+    audio_files = natural_sort([os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.mp3')])
     
     if not image_files:
         print(f"No image files found in {slides_dir}")

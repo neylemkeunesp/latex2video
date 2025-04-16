@@ -1,11 +1,12 @@
 pdf2image
 python-latex
-elevenlabs
+elevenlabs==0.2.24  # Pinned to a stable version
+gtts>=2.3.2  # Google Text-to-Speech
 pillow==8.3.2  # Last version with ANTIALIAS
 moviepy==1.0.3
 pyyaml
 requests
-natsort
+natsort>=8.0.0  # For natural sorting of filenames
 openai>=1.0.0  # For ChatGPT API access
 # ffmpeg is required for video assembly
 # Install with: sudo apt-get install ffmpeg (Linux) or brew install ffmpeg (macOS)

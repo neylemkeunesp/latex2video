@@ -144,6 +144,32 @@ def format_slide_for_chatgpt(slide: Slide, all_slides: List[Slide] = None, slide
     # Process the content
     content = slide.content
     
+    # Check if the content is empty or just the title of the previous slide
+    if not content.strip() or (slide_index is not None and slide_index > 0 and content.strip() == all_slides[slide_index - 1].title):
+        # Use a placeholder message indicating that content is missing
+        logging.warning(f"Slide {slide.frame_number} ({slide.title}) has no content or only contains the title of the previous slide.")
+        
+        # Instead of just a placeholder, provide context about the slide sequence
+        content = f"[ATTENTION: This slide appears to have no content. It may be a transition slide or a slide meant for visual emphasis.]"
+        
+        # Add information about the slide sequence to help generate a meaningful transition script
+        if all_slides and slide_index is not None:
+            if slide_index > 0:
+                prev_slide = all_slides[slide_index - 1]
+                content += f"\n\nPrevious slide title: \"{prev_slide.title}\""
+                if prev_slide.content.strip():
+                    # Add a brief summary of the previous slide's content (first 100 chars)
+                    prev_content = prev_slide.content.strip()
+                    content += f"\nPrevious slide content summary: \"{prev_content[:100]}...\""
+            
+            if slide_index < len(all_slides) - 1:
+                next_slide = all_slides[slide_index + 1]
+                content += f"\n\nNext slide title: \"{next_slide.title}\""
+                if next_slide.content.strip():
+                    # Add a brief summary of the next slide's content (first 100 chars)
+                    next_content = next_slide.content.strip()
+                    content += f"\nNext slide content summary: \"{next_content[:100]}...\""
+    
     # Special handling for title page
     if slide.title == "Title Page":
         formatted_content += content
@@ -252,9 +278,18 @@ def format_slide_for_chatgpt(slide: Slide, all_slides: List[Slide] = None, slide
             formatted_content += "Sua narração deve continuar naturalmente a partir do slide anterior, sem repetir a introdução ou o contexto já apresentado. "
             formatted_content += "Use frases de transição como 'Continuando...', 'Além disso...', 'Adicionalmente...', etc. "
     
-    formatted_content += "Dê atenção especial às fórmulas matemáticas, explicando-as de maneira simples e compreensível. "
-    formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
-    formatted_content += "Limite-se apenas ao conteúdo que está explicitamente mostrado no slide. "
+    # Add special instructions for empty slides
+    if "[ATTENTION: This slide appears to have no content" in content:
+        formatted_content += "Este slide parece estar vazio ou ter conteúdo mínimo. "
+        formatted_content += "Por favor, crie uma narração de transição que conecte o slide anterior ao próximo slide de forma natural. "
+        formatted_content += "A narração deve ser breve (2-3 frases) e servir como uma ponte entre os conceitos. "
+        formatted_content += "Você pode mencionar que estamos passando para o próximo tópico ou que vamos explorar um novo conceito relacionado. "
+        formatted_content += "Não invente conteúdo que não existe, apenas crie uma transição suave. "
+    else:
+        formatted_content += "Dê atenção especial às fórmulas matemáticas, explicando-as de maneira simples e compreensível. "
+        formatted_content += "IMPORTANTE: Não inclua na narração fórmulas ou conceitos matemáticos que não estejam presentes neste slide. "
+        formatted_content += "Limite-se apenas ao conteúdo que está explicitamente mostrado no slide. "
+    
     formatted_content += "O script deve ser adequado para narração em um vídeo educacional."
     
     return formatted_content

@@ -40,6 +40,9 @@ def main(latex_file: str, config_file: str):
     if not config:
         logging.error("Failed to load configuration. Exiting.")
         return
+    
+    # Add the LaTeX file path to the configuration
+    config['latex_file_path'] = os.path.abspath(latex_file)
 
     # Ensure output directories exist
     output_dir = config.get('output_dir', 'output') # Default to 'output' relative to project root

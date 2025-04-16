@@ -30,20 +30,28 @@ def compile_latex_to_pdf(latex_file_path: str, output_dir: str) -> Optional[str]
 
     file_name = os.path.basename(latex_file_path)
     base_name = os.path.splitext(file_name)[0]
-    pdf_path = os.path.join(output_dir, f"{base_name}.pdf")
+    
+    # Get the directory where the source file is located
+    source_dir = os.path.dirname(os.path.abspath(latex_file_path))
+    
+    # First try to compile in the source directory
+    pdf_path_source = os.path.join(source_dir, f"{base_name}.pdf")
+    
+    # Also define the output path in the output directory
+    pdf_path_output = os.path.join(output_dir, f"{base_name}.pdf")
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
-    logging.info(f"Compiling {latex_file_path} to PDF in {output_dir}...")
+    logging.info(f"Compiling {latex_file_path} to PDF in source directory: {source_dir}...")
     
     # Run pdflatex twice for references/toc etc.
     for i in range(2):
         try:
-            # Use -output-directory to specify where PDF goes
-            # Remove check=True to avoid raising an exception on non-zero exit code
+            # First try to compile in the source directory (without specifying output directory)
             process = subprocess.run(
-                ['pdflatex', '-interaction=nonstopmode', f'-output-directory={output_dir}', latex_file_path],
+                ['pdflatex', '-interaction=nonstopmode', latex_file_path],
+                cwd=source_dir,  # Run in the source directory
                 capture_output=True, text=True, timeout=60
             )
             
@@ -69,18 +77,28 @@ def compile_latex_to_pdf(latex_file_path: str, output_dir: str) -> Optional[str]
             logging.error(f"An unexpected error occurred during pdflatex compilation: {e}")
             # Continue to check if PDF was generated despite the error
     
-    # Check if the PDF was generated, regardless of pdflatex exit code
-    if os.path.exists(pdf_path):
+    # Check if the PDF was generated in the source directory, regardless of pdflatex exit code
+    if os.path.exists(pdf_path_source):
         # Check if the PDF file is valid (not empty)
-        if os.path.getsize(pdf_path) > 0:
-            logging.info(f"PDF successfully generated: {pdf_path}")
-            return pdf_path
+        if os.path.getsize(pdf_path_source) > 0:
+            logging.info(f"PDF successfully generated in source directory: {pdf_path_source}")
+            
+            # Copy the PDF to the output directory for further processing
+            try:
+                import shutil
+                shutil.copy2(pdf_path_source, pdf_path_output)
+                logging.info(f"PDF copied to output directory: {pdf_path_output}")
+                return pdf_path_output
+            except Exception as e:
+                logging.error(f"Error copying PDF to output directory: {e}")
+                # If we can't copy, still return the source PDF path
+                return pdf_path_source
         else:
-            logging.error(f"PDF file was generated but is empty: {pdf_path}")
+            logging.error(f"PDF file was generated but is empty: {pdf_path_source}")
             return None
     else:
-        # If PDF doesn't exist, try to read the log file for more details
-        log_file = os.path.join(output_dir, f"{base_name}.log")
+        # If PDF doesn't exist in source directory, try to read the log file for more details
+        log_file = os.path.join(source_dir, f"{base_name}.log")
         if os.path.exists(log_file):
             try:
                 with open(log_file, 'r') as lf:
@@ -89,7 +107,7 @@ def compile_latex_to_pdf(latex_file_path: str, output_dir: str) -> Optional[str]
             except Exception as e:
                 logging.error(f"Error reading log file: {e}")
         
-        logging.error(f"PDF file was not found after compilation: {pdf_path}")
+        logging.error(f"PDF file was not found after compilation. Tried: {pdf_path_source} and {pdf_path_output}")
         return None
 
 def convert_pdf_to_images(pdf_path: str, output_folder: str, dpi: int, image_format: str) -> List[str]:

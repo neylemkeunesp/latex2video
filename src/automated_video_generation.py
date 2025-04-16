@@ -55,18 +55,32 @@ def initialize_openai_client(config: Dict) -> OpenAI:
         logging.error(f"Error initializing OpenAI client: {e}")
         return None
 
-def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> str:
+def generate_script_with_openai(client: OpenAI, prompt_data: Dict, config: Dict) -> str:
     """Generate a script for a slide using the OpenAI API."""
     openai_config = config.get('openai', {})
     model = openai_config.get('model', 'gpt-4o')
     temperature = openai_config.get('temperature', 0.7)
     max_tokens = openai_config.get('max_tokens', 1000)
     
+    prompt = prompt_data["prompt"]
+    slide_title = prompt_data["title"]
+    slide_number = prompt_data["slide_number"]
+    
+    # Check if this is an empty slide that needs a transition script
+    is_empty_slide = "[ATTENTION: This slide appears to have no content" in prompt
+    
+    # Adjust system message based on slide content
+    system_message = "You are an expert educational content creator who specializes in creating clear, concise narration scripts for educational videos. You explain complex concepts in an accessible way, with special attention to mathematical formulas. DO NOT include any markers like '[Início do Script de Narração]' or '[Fim do Script de Narração]' in your response. Just provide the narration script directly."
+    
+    if is_empty_slide:
+        # Add specific instructions for empty slides
+        system_message += " For this empty slide, create a brief transition (2-3 sentences) that connects the previous topic to the next one. Do not invent content that isn't there, just create a smooth transition between concepts."
+    
     try:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are an expert educational content creator who specializes in creating clear, concise narration scripts for educational videos. You explain complex concepts in an accessible way, with special attention to mathematical formulas. DO NOT include any markers like '[Início do Script de Narração]' or '[Fim do Script de Narração]' in your response. Just provide the narration script directly."},
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
             ],
             temperature=temperature,
@@ -74,6 +88,12 @@ def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> st
         )
         
         script = response.choices[0].message.content.strip()
+        
+        # For empty slides, ensure we have at least some content
+        if is_empty_slide and (not script or len(script) < 10):
+            logging.warning(f"Generated script for empty slide {slide_number} was too short. Using default transition.")
+            script = f"Agora que vimos {slide_title}, vamos avançar para o próximo conceito. Esta transição nos ajuda a conectar as ideias e manter o fluxo da apresentação."
+        
         return script
     except Exception as e:
         logging.error(f"Error generating script with OpenAI: {e}")
@@ -82,27 +102,43 @@ def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> st
 def generate_all_scripts(slides: List[Slide], client: OpenAI, config: Dict) -> List[str]:
     """Generate scripts for all slides using the OpenAI API."""
     scripts = []
-    prompts = []
     
     # Create directory for prompts
     output_dir = config.get('output_dir', 'output')
     prompts_dir = os.path.join(output_dir, 'chatgpt_prompts')
     os.makedirs(prompts_dir, exist_ok=True)
     
-    for i, slide in enumerate(slides):
-        logging.info(f"Generating script for slide {i+1}/{len(slides)}: {slide.title}")
+    # Generate prompts for all slides
+    from src.chatgpt_script_generator import generate_chatgpt_prompts, save_prompts_to_files
+    
+    # Get the LaTeX file path or PDF file path
+    file_path = config.get('latex_file_path', '')
+    if not file_path:
+        logging.warning("LaTeX file path not found in config. Using the first slide's content directly.")
+        # Generate prompts directly from slides
+        prompts = []
+        for i, slide in enumerate(slides):
+            # Format the slide content for ChatGPT
+            prompt = format_slide_for_chatgpt(slide, slides, i)
+            prompts.append({
+                "slide_number": i+1,
+                "title": slide.title,
+                "prompt": prompt
+            })
+    else:
+        logging.info(f"Generating prompts from file: {file_path}")
+        prompts = generate_chatgpt_prompts(file_path)
+    
+    # Save prompts to files
+    prompt_file_paths = save_prompts_to_files(prompts, prompts_dir)
+    logging.info(f"Generated and saved {len(prompts)} prompts to {prompts_dir}")
+    
+    for i, prompt in enumerate(prompts):
+        slide_number = prompt["slide_number"]
+        slide_title = prompt["title"]
+        logging.info(f"Generating script for slide {slide_number}/{len(prompts)}: {slide_title}")
         
-        # Format the slide content for ChatGPT
-        prompt = format_slide_for_chatgpt(slide, slides, i)
-        
-        # Save the prompt to a file
-        prompt_file_name = f"slide_{i+1}_prompt.txt"
-        prompt_file_path = os.path.join(prompts_dir, prompt_file_name)
-        with open(prompt_file_path, 'w', encoding='utf-8') as f:
-            f.write(prompt)
-        logging.info(f"Saved prompt for slide {i+1} to {prompt_file_path}")
-        
-        # Generate script with OpenAI
+        # Generate script with OpenAI - pass the prompt data dictionary
         raw_script = generate_script_with_openai(client, prompt, config)
         
         if raw_script:
