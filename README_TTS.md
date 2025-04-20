@@ -58,6 +58,8 @@ Make sure you have the required dependencies installed:
 pip install -r requirements.txt
 ```
 
+For ElevenLabs, you need version 1.57.0 or higher. See [README_ELEVENLABS.md](README_ELEVENLABS.md) for more details on the ElevenLabs integration.
+
 ## Testing gTTS
 
 You can test the gTTS functionality using the provided test script:

@@ -86,8 +86,8 @@ Este comando irá:
 Execute o script `use_chatgpt_scripts.py`:
 
 ```bash
-python -m src.use_chatgpt_scripts assets/presentation.tex
 ```
+python -m src.use_chatgpt_scripts assets/presentation.tex
 
 Este comando irá:
 - Analisar o arquivo LaTeX

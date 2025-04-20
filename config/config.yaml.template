@@ -15,7 +15,7 @@ tts:
 elevenlabs:
   api_key: ""
 #  voice_id: ""  # Sarah's voice ID from available voices
-  voice_id: "qt1bLo3nJpkn2qzf2CT2"  # Ney´s voice ID from available voices
+  voice_id: "4BGVHcW2xjlsh3CQ2d0i"  # Ney's voice ID from available voices (updated for elevenlabs>=1.57.0)
   model_id: "eleven_multilingual_v2"  # Better for Portuguese
 
 latex:

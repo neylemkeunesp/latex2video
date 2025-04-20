@@ -1,10 +1,20 @@
 import os
 import logging
-from elevenlabs.client import ElevenLabs
+from elevenlabs import ElevenLabs
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-API_KEY = "sk_13838f9372f1ac7dbc198b656970512a970da4bb8cba312f"
+# Load API key from config
+import yaml
+try:
+    with open('config/config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    API_KEY = config.get('elevenlabs', {}).get('api_key', '')
+    if not API_KEY:
+        logging.warning("No ElevenLabs API key found in config.yaml")
+except Exception as e:
+    logging.error(f"Error loading config: {e}")
+    API_KEY = ""
 
 def test_elevenlabs():
     try:

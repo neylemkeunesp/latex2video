@@ -1,6 +1,6 @@
 pdf2image
 python-latex
-elevenlabs==0.2.24  # Pinned to a stable version
+elevenlabs>=1.57.0  # Updated to newer version with different API structure
 gtts>=2.3.2  # Google Text-to-Speech
 pillow==8.3.2  # Last version with ANTIALIAS
 moviepy==1.0.3

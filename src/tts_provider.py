@@ -9,8 +9,7 @@ from gtts import gTTS
 
 # Import ElevenLabs for compatibility with existing code
 try:
-    from elevenlabs.client import ElevenLabs
-    from elevenlabs import Voice, save
+    from elevenlabs import ElevenLabs, Voice, save
     ELEVENLABS_AVAILABLE = True
 except (ImportError, NameError) as e:
     logging.warning(f"ElevenLabs import error: {e}. Falling back to gTTS.")
@@ -97,10 +96,10 @@ class ElevenLabsProvider(TTSProvider):
         
         try:
             # ElevenLabs Python SDK v1+ handles SSML tags like <break> automatically
-            audio = self.client.generate(
+            audio = self.client.text_to_speech.convert(
                 text=text,
-                voice=Voice(voice_id=self.voice_id),
-                model=self.model_id
+                voice_id=self.voice_id,
+                model_id=self.model_id
             )
             
             # Ensure directory exists
