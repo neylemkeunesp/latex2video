@@ -11,21 +11,24 @@ import re
 import yaml
 import threading
 import queue
+import time
 from typing import List, Dict, Optional
+from openai import OpenAI
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
     QTabWidget, QLineEdit, QTextEdit, QFileDialog, QMessageBox, QSplitter, QGridLayout,
-    QFrame, QStatusBar, QAction
+    QFrame, QStatusBar, QAction, QScrollArea
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject, QSettings
-from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject, QSettings, QTimer
+from PyQt5.QtGui import QIcon, QPixmap
 
 # Add the parent directory to the path so we can import from src
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.latex_parser import parse_latex_file, Slide
 from src.chatgpt_script_generator import format_slide_for_chatgpt, clean_chatgpt_response
+from src.openai_script_generator import initialize_openai_client, generate_script_with_openai
 from src.image_generator import generate_slide_images
 from src.audio_generator import generate_all_audio
 from src.simple_video_assembler import assemble_video
@@ -175,6 +178,7 @@ class LaTeX2VideoGUI(QMainWindow):
         self.current_slide_index = 0
         self.slides = []
         self.narrations = []
+        self.prompts = []
         self.config = {}
         self.threads = []
         self.dark_mode = False
@@ -307,30 +311,61 @@ class LaTeX2VideoGUI(QMainWindow):
         editor_layout.addWidget(editor_controls)
         
         # Create editor panes
-        editor_splitter = QSplitter(Qt.Horizontal)
+        editor_splitter = QSplitter(Qt.Vertical)
         
-        # Left pane - slide content
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.addWidget(QLabel("Slide Content:"))
+        # Top pane - slide image and content
+        top_splitter = QSplitter(Qt.Horizontal)
+        
+        # Slide image panel
+        image_widget = QWidget()
+        image_layout = QVBoxLayout(image_widget)
+        image_layout.addWidget(QLabel("Slide Image:"))
+        
+        # Create a scroll area for the image
+        self.image_scroll_area = QScrollArea()
+        self.image_scroll_area.setWidgetResizable(True)
+        self.image_scroll_area.setMinimumHeight(300)
+        
+        # Create a label to display the image
+        self.slide_image_label = QLabel()
+        self.slide_image_label.setAlignment(Qt.AlignCenter)
+        self.slide_image_label.setMinimumSize(400, 300)
+        self.slide_image_label.setStyleSheet("background-color: #ffffff;")
+        self.slide_image_label.setText("No image available")
+        
+        # Add the label to the scroll area
+        self.image_scroll_area.setWidget(self.slide_image_label)
+        image_layout.addWidget(self.image_scroll_area)
+        
+        top_splitter.addWidget(image_widget)
+        
+        # ChatGPT response panel
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.addWidget(QLabel("ChatGPT Response:"))
         self.slide_content_text = QTextEdit()
         self.slide_content_text.setReadOnly(True)
-        left_layout.addWidget(self.slide_content_text)
-        editor_splitter.addWidget(left_widget)
+        content_layout.addWidget(self.slide_content_text)
         
-        # Right pane - narration script
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.addWidget(QLabel("Narration Script:"))
+        top_splitter.addWidget(content_widget)
+        
+        # Add the top splitter to the main editor splitter
+        editor_splitter.addWidget(top_splitter)
+        
+        # Bottom pane - ChatGPT prompt
+        bottom_widget = QWidget()
+        bottom_layout = QVBoxLayout(bottom_widget)
+        bottom_layout.addWidget(QLabel("ChatGPT Prompt:"))
         self.narration_text = QTextEdit()
-        right_layout.addWidget(self.narration_text)
-        editor_splitter.addWidget(right_widget)
+        bottom_layout.addWidget(self.narration_text)
+        
+        editor_splitter.addWidget(bottom_widget)
         
         # Add editor panes to editor layout
         editor_layout.addWidget(editor_splitter)
         
         # Add editor tab to tab widget
-        self.tab_widget.addTab(editor_widget, "Narration Editor")
+        self.tab_widget.addTab(editor_widget, "ChatGPT Editor")
         
         # Create generation tab
         generation_widget = QWidget()
@@ -413,6 +448,29 @@ class LaTeX2VideoGUI(QMainWindow):
         self.status_bar.showMessage(message)
         logging.info(message)
 
+    def resizeEvent(self, event):
+        """Handle window resize event"""
+        super().resizeEvent(event)
+        
+        # If we have a current image, reload it to fit the new size
+        if hasattr(self, 'current_image_path') and self.current_image_path:
+            try:
+                # Load the image
+                pixmap = QPixmap(self.current_image_path)
+                if not pixmap.isNull():
+                    # Scale the image to fit the label while maintaining aspect ratio
+                    pixmap = pixmap.scaled(
+                        self.slide_image_label.width(), 
+                        self.slide_image_label.height(),
+                        Qt.KeepAspectRatio, 
+                        Qt.SmoothTransformation
+                    )
+                    
+                    # Display the image
+                    self.slide_image_label.setPixmap(pixmap)
+            except Exception as e:
+                logging.error(f"Error resizing image: {e}")
+    
     def closeEvent(self, event):
         """Handle window close event"""
         # Restore stdout and stderr
@@ -538,57 +596,147 @@ class LaTeX2VideoGUI(QMainWindow):
             self.update_status("Error parsing LaTeX file.")
 
     def generate_scripts(self):
-        """Generate narration scripts for all slides"""
+        """Generate narration scripts for all slides using OpenAI API"""
         if not self.slides:
             QMessageBox.critical(self, "Error", "No slides available. Please parse a LaTeX file first.")
             return
         
-        self.update_status("Generating narration scripts...")
+        # Check if config is loaded
+        if not self.load_config():
+            QMessageBox.critical(self, "Error", "Failed to load configuration. Please check your config file.")
+            return
         
+        # Initialize OpenAI client
+        client = initialize_openai_client(self.config)
+        if not client:
+            QMessageBox.critical(self, "Error", "Failed to initialize OpenAI client. Please check your API key in the config file.")
+            return
+        
+        self.update_status("Generating narration scripts with OpenAI API...")
+        
+        # Create a worker thread
+        thread = QThread()
+        worker = Worker(self._generate_scripts_worker, client)
+        worker.moveToThread(thread)
+        
+        # Connect signals
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        worker.result.connect(self._on_scripts_generated)
+        worker.error.connect(self._on_error)
+        worker.progress.connect(self.update_status)
+        
+        # Start the thread
+        thread.start()
+        
+        # Keep a reference to the thread
+        self.threads.append(thread)
+        
+        self.update_status(f"Started script generation thread")
+
+    def _generate_scripts_worker(self, client):
+        """Worker function for generating scripts with OpenAI API"""
         try:
-            # Generate scripts for all slides
+            logging.info("========== SCRIPT GENERATION STARTED ==========")
+            logging.info(f"Worker thread ID: {threading.get_ident()}")
+            narrations = []
+            prompts = []
+            
+            # Add more detailed logging
+            logging.info(f"Starting to generate scripts for {len(self.slides)} slides")
+            logging.info(f"OpenAI client initialized: {client is not None}")
+            logging.info(f"OpenAI client type: {type(client)}")
+            logging.info(f"Using model: {self.config.get('openai', {}).get('model', 'gpt-4o')}")
+            logging.info(f"Config contents: {self.config}")
+            
             for i, slide in enumerate(self.slides):
-                # Format slide for script generation
-                formatted_content = format_slide_for_chatgpt(slide, self.slides, i)
-                
-                # For now, we'll use a simple template-based approach
-                # In a real implementation, this would call the OpenAI API
-                
-                # Simple template-based narration
-                if slide.title == "Title Page":
-                    narration = f"Bem-vindos à nossa apresentação sobre {slide.content.replace('Title: ', '').replace('Author: ', 'por ')}."
-                elif slide.title == "Outline":
-                    narration = "Vamos ver os principais tópicos que serão abordados nesta apresentação."
-                elif slide.title.startswith("Section:"):
-                    section_name = slide.title.replace("Section:", "").strip()
-                    narration = f"Agora vamos falar sobre {section_name}."
-                else:
-                    # Basic narration for content slides
-                    narration = f"{slide.title}. "
+                try:
+                    # Format slide for script generation
+                    formatted_content = format_slide_for_chatgpt(slide, self.slides, i)
                     
-                    # Add content, removing LaTeX commands
-                    content_text = re.sub(r'\\[a-zA-Z]+(\{.*?\})?', '', slide.content)
-                    content_text = re.sub(r'\$.*?\$', '', content_text)  # Remove math
-                    content_text = re.sub(r'\s+', ' ', content_text).strip()
+                    # Store the prompt
+                    prompts.append(formatted_content)
                     
-                    if content_text:
-                        narration += content_text
+                    # Log the prompt being sent (first 100 chars)
+                    prompt_preview = formatted_content[:100] + "..." if len(formatted_content) > 100 else formatted_content
+                    logging.info(f"Sending prompt for slide {i+1}: {prompt_preview}")
+                    
+                    # Generate script with OpenAI
+                    status_msg = f"Generating script for slide {i+1}/{len(self.slides)}: {slide.title}"
+                    logging.info(status_msg)
+                    
+                    # More detailed logging before API call
+                    logging.info(f"Calling OpenAI API for slide {i+1}")
+                    logging.info(f"OpenAI client: {client}")
+                    logging.info(f"OpenAI config: {self.config.get('openai', {})}")
+                    
+                    try:
+                        logging.info("About to call generate_script_with_openai")
+                        script = generate_script_with_openai(client, formatted_content, self.config)
+                        logging.info(f"OpenAI API call completed. Response received: {bool(script)}")
+                    except Exception as api_error:
+                        logging.error(f"Error calling OpenAI API: {api_error}")
+                        logging.error(f"Error details: {str(api_error)}")
+                        script = None
+                    
+                    if script:
+                        # Clean the response
+                        cleaned_script = clean_chatgpt_response(script)
+                        narrations.append(cleaned_script)
+                        logging.info(f"Successfully generated script for slide {i+1}")
                     else:
-                        narration += f"Este slide apresenta informações sobre {slide.title}."
-                
-                # Store the narration
-                self.narrations[i] = narration
+                        logging.info(f"Failed to generate script for slide {i+1}, using placeholder")
+                        # Add a placeholder script
+                        narrations.append(f"Script for slide {i+1} could not be generated.")
+                    
+                    # Save the prompt to a file
+                    prompts_dir = os.path.join(self.output_dir, 'chatgpt_prompts')
+                    os.makedirs(prompts_dir, exist_ok=True)
+                    prompt_path = os.path.join(prompts_dir, f"slide_{i+1}_prompt.txt")
+                    
+                    with open(prompt_path, 'w', encoding='utf-8') as f:
+                        f.write(formatted_content)
+                        
+                except Exception as slide_error:
+                    # Catch errors for individual slides but continue processing
+                    error_msg = f"Error processing slide {i+1}: {str(slide_error)}"
+                    logging.error(error_msg)
+                    narrations.append(f"Error generating script for slide {i+1}: {str(slide_error)}")
             
-            # Update the display
-            self.update_slide_display()
-            
-            self.update_status("Narration scripts generated.")
-            QMessageBox.information(self, "Success", "Narration scripts generated for all slides.")
+            return {"narrations": narrations, "prompts": prompts}
             
         except Exception as e:
-            logging.error(f"Error generating scripts: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to generate scripts: {e}")
-            self.update_status("Error generating scripts.")
+            logging.error(f"Error in generate_scripts_worker: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+            raise
+    
+    def _on_scripts_generated(self, result):
+        """Handle the result of script generation"""
+        narrations = result.get("narrations", [])
+        prompts = result.get("prompts", [])
+        
+        if not narrations:
+            QMessageBox.critical(self, "Error", "Failed to generate narration scripts.")
+            self.update_status("Failed to generate narration scripts.")
+            return
+        
+        # Store the narrations and prompts
+        self.narrations = narrations
+        self.prompts = prompts
+        
+        # Update the display
+        self.update_slide_display()
+        
+        self.update_status(f"Generated {len(narrations)} narration scripts.")
+        QMessageBox.information(self, "Success", f"Generated {len(narrations)} narration scripts.")
+
+    def _on_error(self, error_msg):
+        """Handle errors from worker threads"""
+        QMessageBox.critical(self, 'Error', f'An error occurred: {error_msg}')
+        self.update_status(f'Error: {error_msg}')
 
     def save_scripts(self):
         """Save the current narration scripts"""
@@ -620,34 +768,52 @@ class LaTeX2VideoGUI(QMainWindow):
             self.update_status("Error saving scripts.")
 
     def load_scripts(self):
-        """Load narration scripts from files"""
+        """Load narration scripts and prompts from files"""
         if not self.slides:
             QMessageBox.critical(self, "Error", "No slides available. Please parse a LaTeX file first.")
             return
         
-        output_dir = os.path.join(self.output_dir, 'chatgpt_responses')
-        if not os.path.exists(output_dir):
-            QMessageBox.critical(self, "Error", f"Scripts directory not found: {output_dir}")
+        responses_dir = os.path.join(self.output_dir, 'chatgpt_responses')
+        prompts_dir = os.path.join(self.output_dir, 'chatgpt_prompts')
+        
+        if not os.path.exists(responses_dir):
+            QMessageBox.critical(self, "Error", f"Responses directory not found: {responses_dir}")
             return
         
         try:
-            # Load scripts for all slides
+            # Initialize narrations list if needed
+            if len(self.narrations) != len(self.slides):
+                self.narrations = [""] * len(self.slides)
+            
+            # Initialize prompts list if needed
+            if len(self.prompts) != len(self.slides):
+                self.prompts = [""] * len(self.slides)
+            
+            # Load responses for all slides
             for i in range(len(self.slides)):
-                file_path = os.path.join(output_dir, f"slide_{i+1}_response.txt")
-                if os.path.exists(file_path):
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                response_path = os.path.join(responses_dir, f'slide_{i+1}_response.txt')
+                if os.path.exists(response_path):
+                    with open(response_path, 'r', encoding='utf-8') as f:
                         self.narrations[i] = f.read().strip()
+            
+            # Load prompts for all slides if they exist
+            if os.path.exists(prompts_dir):
+                for i in range(len(self.slides)):
+                    prompt_path = os.path.join(prompts_dir, f'slide_{i+1}_prompt.txt')
+                    if os.path.exists(prompt_path):
+                        with open(prompt_path, 'r', encoding='utf-8') as f:
+                            self.prompts[i] = f.read().strip()
             
             # Update the display
             self.update_slide_display()
             
-            self.update_status("Narration scripts loaded.")
-            QMessageBox.information(self, "Success", "Narration scripts loaded.")
+            self.update_status('Scripts loaded.')
+            QMessageBox.information(self, 'Success', 'Scripts and prompts loaded.')
             
         except Exception as e:
-            logging.error(f"Error loading scripts: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to load scripts: {e}")
-            self.update_status("Error loading scripts.")
+            logging.error(f'Error loading scripts: {e}')
+            QMessageBox.critical(self, 'Error', f'Failed to load scripts: {e}')
+            self.update_status('Error loading scripts.')
 
     def prev_slide(self):
         """Navigate to the previous slide"""
@@ -682,21 +848,88 @@ class LaTeX2VideoGUI(QMainWindow):
         if not self.slides or self.current_slide_index >= len(self.slides):
             return
         
-        # Get current slide and narration
+        # Get current slide, narration, and prompt
         slide = self.slides[self.current_slide_index]
         narration = self.narrations[self.current_slide_index] if self.current_slide_index < len(self.narrations) else ""
         
-        # Update slide content
-        self.slide_content_text.clear()
-        self.slide_content_text.append(f"Title: {slide.title}\n\n")
-        self.slide_content_text.append(slide.content)
+        # Get prompt if available, otherwise use an empty string
+        prompt = ""
+        if len(self.prompts) > self.current_slide_index:
+            prompt = self.prompts[self.current_slide_index]
         
-        # Update narration text
+        # If no prompt is available, try to load it from file
+        if not prompt:
+            prompt_path = os.path.join(self.output_dir, 'chatgpt_prompts', f'slide_{self.current_slide_index + 1}_prompt.txt')
+            if os.path.exists(prompt_path):
+                try:
+                    with open(prompt_path, 'r', encoding='utf-8') as f:
+                        prompt = f.read().strip()
+                        # Store the prompt for future use
+                        if len(self.prompts) <= self.current_slide_index:
+                            self.prompts.extend([''] * (self.current_slide_index + 1 - len(self.prompts)))
+                        self.prompts[self.current_slide_index] = prompt
+                except Exception as e:
+                    logging.error(f'Error loading prompt: {e}')
+        
+        # Update ChatGPT response panel with the narration
+        self.slide_content_text.clear()
+        self.slide_content_text.append(narration)
+        
+        # Update ChatGPT prompt panel with the prompt
         self.narration_text.clear()
-        self.narration_text.append(narration)
+        self.narration_text.append(prompt)
         
         # Update slide label
-        self.slide_label.setText(f"Slide: {self.current_slide_index + 1}/{len(self.slides)}")
+        self.slide_label.setText(f'Slide: {self.current_slide_index + 1}/{len(self.slides)}')
+        
+        # Try to load and display the slide image
+        self.load_slide_image()
+
+    def load_slide_image(self):
+        """Load and display the current slide image if it exists"""
+        # Clear current image
+        self.slide_image_label.clear()
+        self.slide_image_label.setText('No image available')
+        
+        # Check if the slides directory exists
+        slides_dir = os.path.join(self.output_dir, 'slides')
+        if not os.path.exists(slides_dir):
+            return
+        
+        # Try to find the image for the current slide
+        slide_number = self.current_slide_index + 1
+        
+        # Store the image path for potential resizing
+        self.current_image_path = None
+        
+        # Check for common image formats
+        for ext in ['png', 'jpg', 'jpeg']:
+            image_path = os.path.join(slides_dir, f'slide_{slide_number}.{ext}')
+            if os.path.exists(image_path):
+                try:
+                    # Load the image
+                    pixmap = QPixmap(image_path)
+                    if not pixmap.isNull():
+                        # Store the original image path for resizing
+                        self.current_image_path = image_path
+                        
+                        # Scale the image to fit the label while maintaining aspect ratio
+                        pixmap = pixmap.scaled(
+                            self.slide_image_label.width(), 
+                            self.slide_image_label.height(),
+                            Qt.KeepAspectRatio, 
+                            Qt.SmoothTransformation
+                        )
+                        
+                        # Display the image
+                        self.slide_image_label.setPixmap(pixmap)
+                        self.slide_image_label.setText('')  # Clear the 'No image available' text
+                        
+                        # Update status
+                        self.update_status(f'Loaded slide image: {image_path}')
+                        return
+                except Exception as e:
+                    logging.error(f'Error loading image {image_path}: {e}')
 
     def generate_images(self):
         """Generate images from the LaTeX file"""
@@ -705,10 +938,10 @@ class LaTeX2VideoGUI(QMainWindow):
         
         latex_file = self.latex_file_path
         if not latex_file or not os.path.exists(latex_file):
-            QMessageBox.critical(self, "Error", "Please select a valid LaTeX file first.")
+            QMessageBox.critical(self, 'Error', 'Please select a valid LaTeX file first.')
             return
         
-        self.update_status("Generating slide images...")
+        self.update_status('Generating slide images...')
         
         # Create a worker thread
         thread = QThread()
@@ -741,17 +974,16 @@ class LaTeX2VideoGUI(QMainWindow):
     def _on_images_generated(self, image_paths):
         """Handle the result of image generation"""
         if not image_paths:
-            QMessageBox.critical(self, "Error", "Failed to generate slide images.")
-            self.update_status("Failed to generate slide images.")
+            QMessageBox.critical(self, 'Error', 'Failed to generate slide images.')
+            self.update_status('Failed to generate slide images.')
             return
         
-        self.update_status(f"Generated {len(image_paths)} slide images.")
-        QMessageBox.information(self, "Success", f"Generated {len(image_paths)} slide images.")
-
-    def _on_error(self, error_msg):
-        """Handle errors from worker threads"""
-        QMessageBox.critical(self, "Error", f"An error occurred: {error_msg}")
-        self.update_status(f"Error: {error_msg}")
+        self.update_status(f'Generated {len(image_paths)} slide images.')
+        
+        # Update the slide display to show the current slide image
+        self.load_slide_image()
+        
+        QMessageBox.information(self, 'Success', f'Generated {len(image_paths)} slide images.')
 
     def generate_audio(self):
         """Generate audio files from narration scripts"""
@@ -759,7 +991,7 @@ class LaTeX2VideoGUI(QMainWindow):
             return
         
         if not self.slides or not self.narrations:
-            QMessageBox.critical(self, "Error", "No narration scripts available. Please generate scripts first.")
+            QMessageBox.critical(self, 'Error', 'No narration scripts available. Please generate scripts first.')
             return
         
         # Save current narration
@@ -769,7 +1001,7 @@ class LaTeX2VideoGUI(QMainWindow):
         # Save all narrations to files first
         self.save_scripts()
         
-        self.update_status("Generating audio files...")
+        self.update_status('Generating audio files...')
         
         # Create a worker thread
         thread = QThread()
@@ -802,12 +1034,12 @@ class LaTeX2VideoGUI(QMainWindow):
     def _on_audio_generated(self, audio_paths):
         """Handle the result of audio generation"""
         if not audio_paths:
-            QMessageBox.critical(self, "Error", "Failed to generate audio files.")
-            self.update_status("Failed to generate audio files.")
+            QMessageBox.critical(self, 'Error', 'Failed to generate audio files.')
+            self.update_status('Failed to generate audio files.')
             return
         
-        self.update_status(f"Generated {len(audio_paths)} audio files.")
-        QMessageBox.information(self, "Success", f"Generated {len(audio_paths)} audio files.")
+        self.update_status(f'Generated {len(audio_paths)} audio files.')
+        QMessageBox.information(self, 'Success', f'Generated {len(audio_paths)} audio files.')
 
     def assemble_video(self):
         """Assemble the final video from images and audio"""
@@ -819,14 +1051,14 @@ class LaTeX2VideoGUI(QMainWindow):
         audio_dir = os.path.join(self.output_dir, 'audio')
         
         if not os.path.exists(slides_dir) or not os.listdir(slides_dir):
-            QMessageBox.critical(self, "Error", "No slide images found. Please generate images first.")
+            QMessageBox.critical(self, 'Error', 'No slide images found. Please generate images first.')
             return
         
         if not os.path.exists(audio_dir) or not os.listdir(audio_dir):
-            QMessageBox.critical(self, "Error", "No audio files found. Please generate audio first.")
+            QMessageBox.critical(self, 'Error', 'No audio files found. Please generate audio first.')
             return
         
-        self.update_status("Assembling video...")
+        self.update_status('Assembling video...')
         
         # Create a worker thread
         thread = QThread()
@@ -854,7 +1086,7 @@ class LaTeX2VideoGUI(QMainWindow):
         audio_files = sorted([os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.mp3')])
         
         if len(image_files) != len(audio_files):
-            raise ValueError(f"Mismatch between number of images ({len(image_files)}) and audio files ({len(audio_files)}).")
+            raise ValueError(f'Mismatch between number of images ({len(image_files)}) and audio files ({len(audio_files)}).')
         
         # Make a copy of the config to avoid thread issues
         config_copy = self.config.copy()
@@ -865,12 +1097,12 @@ class LaTeX2VideoGUI(QMainWindow):
     def _on_video_assembled(self, output_path):
         """Handle the result of video assembly"""
         if not output_path:
-            QMessageBox.critical(self, "Error", "Failed to assemble video.")
-            self.update_status("Failed to assemble video.")
+            QMessageBox.critical(self, 'Error', 'Failed to assemble video.')
+            self.update_status('Failed to assemble video.')
             return
         
-        self.update_status(f"Video assembled: {output_path}")
-        QMessageBox.information(self, "Success", f"Video assembled: {output_path}")
+        self.update_status(f'Video assembled: {output_path}')
+        QMessageBox.information(self, 'Success', f'Video assembled: {output_path}')
 
     def generate_all(self):
         """Generate everything: images, audio, and video"""
@@ -879,11 +1111,11 @@ class LaTeX2VideoGUI(QMainWindow):
         
         latex_file = self.latex_file_path
         if not latex_file or not os.path.exists(latex_file):
-            QMessageBox.critical(self, "Error", "Please select a valid LaTeX file first.")
+            QMessageBox.critical(self, 'Error', 'Please select a valid LaTeX file first.')
             return
         
         if not self.slides or not self.narrations:
-            QMessageBox.critical(self, "Error", "No slides or narrations available. Please parse LaTeX and generate scripts first.")
+            QMessageBox.critical(self, 'Error', 'No slides or narrations available. Please parse LaTeX and generate scripts first.')
             return
         
         # Save current narration
@@ -893,10 +1125,10 @@ class LaTeX2VideoGUI(QMainWindow):
         # Save all narrations to files
         self.save_scripts()
         
-        self.update_status("Generating everything...")
+        self.update_status('Generating everything...')
         
         # Step 1: Generate images
-        self.update_status("Step 1: Generating slide images...")
+        self.update_status('Step 1: Generating slide images...')
         
         # Create a worker thread for image generation
         thread1 = QThread()
@@ -920,14 +1152,14 @@ class LaTeX2VideoGUI(QMainWindow):
     def _continue_with_audio(self, image_paths):
         """Continue with audio generation after images are generated"""
         if not image_paths:
-            QMessageBox.critical(self, "Error", "Failed to generate slide images.")
-            self.update_status("Failed to generate slide images.")
+            QMessageBox.critical(self, 'Error', 'Failed to generate slide images.')
+            self.update_status('Failed to generate slide images.')
             return
         
-        self.update_status(f"Generated {len(image_paths)} slide images.")
+        self.update_status(f'Generated {len(image_paths)} slide images.')
         
         # Step 2: Generate audio
-        self.update_status("Step 2: Generating audio files...")
+        self.update_status('Step 2: Generating audio files...')
         
         # Create a worker thread for audio generation
         thread2 = QThread()
@@ -951,19 +1183,19 @@ class LaTeX2VideoGUI(QMainWindow):
     def _continue_with_video(self, image_paths, audio_paths):
         """Continue with video assembly after audio is generated"""
         if not audio_paths:
-            QMessageBox.critical(self, "Error", "Failed to generate audio files.")
-            self.update_status("Failed to generate audio files.")
+            QMessageBox.critical(self, 'Error', 'Failed to generate audio files.')
+            self.update_status('Failed to generate audio files.')
             return
         
-        self.update_status(f"Generated {len(audio_paths)} audio files.")
+        self.update_status(f'Generated {len(audio_paths)} audio files.')
         
         # Step 3: Assemble video
-        self.update_status("Step 3: Assembling final video...")
+        self.update_status('Step 3: Assembling final video...')
         
         # Check if the number of images matches the number of audio files
         if len(image_paths) != len(audio_paths):
-            QMessageBox.warning(self, "Warning", 
-                f"Mismatch between number of images ({len(image_paths)}) and audio files ({len(audio_paths)}). Using the minimum number.")
+            QMessageBox.warning(self, 'Warning', 
+                f'Mismatch between number of images ({len(image_paths)}) and audio files ({len(audio_paths)}). Using the minimum number.')
             # Use the minimum number of files
             count = min(len(image_paths), len(audio_paths))
             image_paths = image_paths[:count]
@@ -1000,5 +1232,5 @@ def main():
     sys.exit(app.exec_())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

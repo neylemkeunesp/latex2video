@@ -84,7 +84,7 @@ class LaTeX2VideoGUI:
             try:
                 with open(config_path, 'r') as f:
                     self.config = yaml.safe_load(f)
-                logging.info(f"Configuration loaded from  xxxx {config_path}")
+                logging.info(f"Configuration loaded from  {config_path}")
                 print("Debug: Configuration loaded from", config_path)                
                 # Add output_dir to config
                 self.config['output_dir'] = self.output_dir.get()

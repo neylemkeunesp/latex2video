@@ -19,35 +19,79 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def load_config(config_path: str) -> dict:
     """Loads configuration from YAML file."""
+    logging.info(f"Attempting to load configuration from {config_path}")
+    
+    if not os.path.exists(config_path):
+        logging.error(f"Configuration file not found: {config_path}")
+        return {}
+    
     try:
+        logging.info(f"Opening configuration file: {config_path}")
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
-        logging.info(f"Configuration loaded from {config_path}")
+        
+        logging.info(f"Configuration loaded successfully from {config_path}")
+        
+        # Log configuration details (excluding sensitive information)
+        safe_config = config.copy()
+        if 'openai' in safe_config and 'api_key' in safe_config['openai']:
+            safe_config['openai']['api_key'] = '****'
+        
+        logging.info(f"Configuration contents: {safe_config}")
+        
+        # Check for required configuration sections
+        if 'openai' not in config:
+            logging.warning("OpenAI configuration section not found in config file")
+        elif 'api_key' not in config['openai']:
+            logging.warning("API key not found in OpenAI configuration section")
+        
         return config
     except FileNotFoundError:
         logging.error(f"Configuration file not found: {config_path}")
         return {}
     except yaml.YAMLError as e:
         logging.error(f"Error parsing configuration file {config_path}: {e}")
+        logging.error(f"Error details: {str(e)}")
         return {}
     except Exception as e:
         logging.error(f"An unexpected error occurred loading config: {e}")
+        logging.error(f"Error details: {str(e)}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
         return {}
 
 def initialize_openai_client(config: Dict) -> OpenAI:
     """Initialize the OpenAI client with API key from config."""
+    logging.info("Initializing OpenAI client...")
+    
     openai_config = config.get('openai', {})
+    logging.info(f"OpenAI config found: {bool(openai_config)}")
+    
     api_key = openai_config.get('api_key')
+    has_api_key = bool(api_key)
+    logging.info(f"API key found: {has_api_key}")
     
     if not api_key:
         logging.error("OpenAI API key not found in config. Please add your API key to config/config.yaml")
         return None
     
+    # Log a masked version of the API key for debugging (only first 4 and last 4 chars)
+    if len(api_key) > 8:
+        masked_key = api_key[:4] + '*' * (len(api_key) - 8) + api_key[-4:]
+    else:
+        masked_key = '****'
+    logging.info(f"Using API key: {masked_key}")
+    
     try:
+        logging.info("Creating OpenAI client...")
         client = OpenAI(api_key=api_key)
+        logging.info("OpenAI client created successfully")
         return client
     except Exception as e:
         logging.error(f"Error initializing OpenAI client: {e}")
+        logging.error(f"Error details: {str(e)}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> str:
@@ -57,7 +101,15 @@ def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> st
     temperature = openai_config.get('temperature', 0.7)
     max_tokens = openai_config.get('max_tokens', 1000)
     
+    logging.info(f"OpenAI API call details:")
+    logging.info(f"  - Client: {client}")
+    logging.info(f"  - Model: {model}")
+    logging.info(f"  - Temperature: {temperature}")
+    logging.info(f"  - Max tokens: {max_tokens}")
+    logging.info(f"  - Prompt length: {len(prompt)} characters")
+    
     try:
+        logging.info("Sending request to OpenAI API...")
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -68,10 +120,15 @@ def generate_script_with_openai(client: OpenAI, prompt: str, config: Dict) -> st
             max_tokens=max_tokens
         )
         
+        logging.info("Response received from OpenAI API")
         script = response.choices[0].message.content.strip()
+        logging.info(f"Script generated successfully (length: {len(script)} characters)")
         return script
     except Exception as e:
         logging.error(f"Error generating script with OpenAI: {e}")
+        logging.error(f"Error details: {str(e)}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
         return ""
 
 def generate_all_scripts(slides: List[Slide], client: OpenAI, config: Dict) -> List[str]:

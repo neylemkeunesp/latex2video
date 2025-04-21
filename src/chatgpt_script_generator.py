@@ -236,6 +236,10 @@ def format_slide_for_chatgpt(slide: Slide, all_slides: List[Slide] = None, slide
         all_slides: Optional list of all slides in the presentation
         slide_index: Optional index of the current slide in the all_slides list
     """
+    logging.info(f"Formatting slide for ChatGPT: {slide.title} (Frame {slide.frame_number})")
+    logging.info(f"  - All slides provided: {all_slides is not None}")
+    logging.info(f"  - Slide index provided: {slide_index is not None}")
+    
     # Start with the slide title
     formatted_content = f"# {slide.title}\n\n"
     
