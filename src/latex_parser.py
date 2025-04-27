@@ -203,7 +203,7 @@ def parse_pdf_file(pdf_path: str) -> List[Slide]:
     return slides
 
 def parse_latex_file(file_path: str) -> List[Slide]:
-    """Parses a LaTeX Beamer file or PDF file and extracts slides."""
+    """Parses a LaTeX Beamer file or PDF file and extracts slides, including \section as slides."""
     # Check if the file is a PDF
     if file_path.lower().endswith('.pdf'):
         logging.info(f"Detected PDF file: {file_path}")
@@ -226,65 +226,39 @@ def parse_latex_file(file_path: str) -> List[Slide]:
         logging.error(f"Error reading LaTeX file {file_path}: {e}")
         return []
 
-    # Find all frames using a non-greedy match
-    # Try different patterns for frame detection
-    frames = []
+    # --- NEW: Find all \section and frame occurrences with their positions ---
+    # Pattern for \section{...}
+    section_pattern = re.compile(r'\\section\{(.*?)\}', re.DOTALL)
+    # Patterns for frames
+    frame_patterns = [
+        re.compile(r'\\begin\{frame\}(.*?)\\end\{frame\}', re.DOTALL),
+        re.compile(r'\\begin\{frame\}\[(.*?)\](.*?)\\end\{frame\}', re.DOTALL),
+        re.compile(r'(?<!title)\\frame\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}', re.DOTALL),
+        re.compile(r'\\begin\{frame\}\{(.*?)\}(.*?)\\end\{frame\}', re.DOTALL),
+    ]
 
-    # Pattern 1: Standard \begin{frame}...\end{frame}
-    frames_pattern1 = re.findall(r'\\begin\{frame\}(.*?)\\end\{frame\}', latex_content, re.DOTALL)
-    if frames_pattern1:
-        logging.info(f"Found {len(frames_pattern1)} frames using standard pattern")
-        frames.extend(frames_pattern1)
+    # Find all \section occurrences
+    section_matches = [(m.start(), m.end(), m.group(1).strip()) for m in section_pattern.finditer(latex_content)]
 
-    # Pattern 2: \begin{frame}[options]...\end{frame}
-    frames_pattern2 = re.findall(r'\\begin\{frame\}\[(.*?)\](.*?)\\end\{frame\}', latex_content, re.DOTALL)
-    if frames_pattern2:
-        logging.info(f"Found {len(frames_pattern2)} frames with options")
-        frames.extend([content for _, content in frames_pattern2])
+    # Find all frame occurrences (with their positions and content)
+    frame_matches = []
+    for pat in frame_patterns:
+        for m in pat.finditer(latex_content):
+            # For patterns with two groups (title, content), use content
+            if len(m.groups()) == 2:
+                frame_matches.append((m.start(), m.end(), m.group(2)))
+            else:
+                frame_matches.append((m.start(), m.end(), m.group(1)))
 
-    # Pattern 3: \frame{...} (older LaTeX syntax)
-    # Make sure we're not matching \frametitle{...}
-    #frames_pattern3 = re.findall(r'(?<!title)\\frame\{(.*?)\}', latex_content, re.DOTALL)
-    frames_pattern3 = re.findall(r'(?<!title)\\frame\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}', latex_content, re.DOTALL)
+    # Merge all slide-like elements (sections and frames) by their position in the file
+    all_slide_matches = []
+    for start, end, title in section_matches:
+        all_slide_matches.append({'type': 'section', 'start': start, 'end': end, 'title': title, 'content': title})
+    for start, end, content in frame_matches:
+        all_slide_matches.append({'type': 'frame', 'start': start, 'end': end, 'content': content})
 
-    if frames_pattern3:
-        logging.info(f"Found {len(frames_pattern3)} frames using \\frame{{...}} syntax")
-        frames.extend(frames_pattern3)
-    # Pattern 4: \begin{frame}{title}...\end{frame}
-    frames_pattern4 = re.findall(r'\\begin\{frame\}\{(.*?)\}(.*?)\\end\{frame\}', latex_content, re.DOTALL)
-    if frames_pattern4:
-        logging.info(f"Found {len(frames_pattern4)} frames with inline titles")
-        frames.extend([content for _, content in frames_pattern4])
-
-    logging.info(f"Total frames found: {len(frames)}")
-
-    # If no frames were found, try a more aggressive approach
-    if not frames:
-        logging.warning("No frames found with standard patterns. Trying more aggressive pattern matching...")
-
-        # Split the content by \begin{frame} and \end{frame}
-        frame_starts = [m.start() for m in re.finditer(r'\\begin\{frame\}', latex_content)]
-        frame_ends = [m.start() for m in re.finditer(r'\\end\{frame\}', latex_content)]
-
-        if len(frame_starts) > 0 and len(frame_ends) > 0:
-            logging.info(f"Found {len(frame_starts)} frame starts and {len(frame_ends)} frame ends")
-
-            # Match starts and ends
-            for i in range(min(len(frame_starts), len(frame_ends))):
-                if frame_starts[i] < frame_ends[i]:
-                    frame_content = latex_content[frame_starts[i] + len('\\begin{frame}'):frame_ends[i]]
-                    frames.append(frame_content)
-            logging.info(f"Extracted {len(frames)} frames using position-based matching")
-
-    # If still no frames, try to estimate based on the PDF page count
-    if not frames and pdf_page_count > 2:  # If we have more than title and TOC
-        logging.warning("No frames found with any pattern. Creating dummy frames based on PDF page count...")
-
-        # Create dummy frames for each page beyond title and TOC
-        for i in range(pdf_page_count - 2):
-            frames.append(f"\\frametitle{{Slide {i+3}}}\nContent for slide {i+3}")
-
-        logging.info(f"Created {len(frames)} dummy frames based on PDF page count")
+    # Sort by position in the file
+    all_slide_matches.sort(key=lambda x: x['start'])
 
     # Extract document title and author for use in slides
     title_match = re.search(r'\\title\{(.*?)\}', latex_content, re.DOTALL)
@@ -293,17 +267,12 @@ def parse_latex_file(file_path: str) -> List[Slide]:
     doc_author = author_match.group(1).strip() if author_match else ""
 
     # Get the number of pages in the PDF
-    # First check in the source directory
     source_dir = os.path.dirname(os.path.abspath(file_path))
     base_name = os.path.splitext(os.path.basename(file_path))[0]
     pdf_path_source = os.path.join(source_dir, base_name + '.pdf')
-
-    # Also check in the output directory
     pdf_path_output = os.path.join('output', 'temp_pdf', base_name + '.pdf')
-
     pdf_page_count = 0  # Initialize to 0
 
-    # Try to get page count from source directory first
     try:
         if os.path.exists(pdf_path_source):
             logging.info(f"Found PDF in source directory: {pdf_path_source}")
@@ -312,7 +281,6 @@ def parse_latex_file(file_path: str) -> List[Slide]:
             if match:
                 pdf_page_count = int(match.group(1))
                 logging.info(f"PDF in source directory has {pdf_page_count} pages")
-        # If not found in source directory or couldn't get page count, try output directory
         elif os.path.exists(pdf_path_output):
             logging.info(f"Found PDF in output directory: {pdf_path_output}")
             result = subprocess.run(['pdfinfo', pdf_path_output], capture_output=True, text=True, check=True)
@@ -325,91 +293,56 @@ def parse_latex_file(file_path: str) -> List[Slide]:
     except Exception as e:
         logging.warning(f"Could not determine PDF page count: {e}")
 
-    # If we still don't have a page count, try to estimate from the number of frames
+    # If we still don't have a page count, estimate from number of slides
     if pdf_page_count == 0:
-        # Count the number of frames in the LaTeX file
-        frame_count = len(frames)
-
-        # Add 2 for title and outline slides
-        estimated_page_count = frame_count + 2
-
-        logging.warning(f"Could not determine PDF page count from file. Estimating {estimated_page_count} pages based on {frame_count} frames plus title and outline slides.")
+        estimated_page_count = len(all_slide_matches) + 2
+        logging.warning(f"Could not determine PDF page count from file. Estimating {estimated_page_count} pages based on {len(all_slide_matches)} slides plus title and outline.")
         pdf_page_count = estimated_page_count
 
-    # Create slides to match the PDF page count
+    # --- Build slides ---
     parsed_slides: List[Slide] = []
 
-    # First slide is always the title page
+    # Title page
     parsed_slides.append(Slide(
         frame_number=1,
         title="Title Page",
         content=f"Title: {doc_title}\nAuthor: {doc_author}"
     ))
-    # Find the outline slide if it exists
-    outline_slide_index = -1
-    for i, frame_content in enumerate(frames):
-        # Check if this frame is an outline/TOC slide
-        if '\\tableofcontents' in frame_content or 'Outline' in frame_content or 'Sumário' in frame_content:
-            outline_slide_index = i
-            break
 
-    # Add a default outline slide if we didn't find one
-    if outline_slide_index == -1:
-        parsed_slides.append(Slide(
-            frame_number=2,
-            title="Outline",
-            content="This slide shows the outline of the presentation."
-        ))
-    else:
-        # Extract the outline slide content
-        outline_content = clean_latex_content(frames[outline_slide_index])
-        if not outline_content.strip():
-            outline_content = "This slide shows the outline of the presentation."
+    # Outline slide
+    parsed_slides.append(Slide(
+        frame_number=2,
+        title="Outline",
+        content="This slide shows the outline of the presentation."
+    ))
 
-        # Add the outline slide as slide 2
-        parsed_slides.append(Slide(
-            frame_number=2,
-            title="Outline",
-            content=outline_content
-        ))
-
-        # Remove the outline slide from frames so we don't process it again
-        frames.pop(outline_slide_index)
-
-    # Process the actual content frames and create slides
-    start_frame_number = 3  # Start content slides at frame 3 (after title and outline)
-    for i, frame_content in enumerate(frames):
-        # Skip the title page frame
-        if '\\titlepage' in frame_content:
-            continue
-
-        # Calculate the frame number
-        frame_number = i + start_frame_number
+    # Content slides (section and frame slides, in order)
+    frame_number = 3
+    for slide_match in all_slide_matches:
         if frame_number > pdf_page_count:
-            break  # Don't create more slides than PDF pages
+            break
+        if slide_match['type'] == 'section':
+            # Section slide: title and content are the section title
+            parsed_slides.append(Slide(
+                frame_number=frame_number,
+                title=slide_match['title'],
+                content=slide_match['title']
+            ))
+        else:
+            # Frame slide: extract title and content as before
+            title = extract_frame_title(slide_match['content'])
+            cleaned_content = clean_latex_content(slide_match['content'])
+            if not cleaned_content.strip():
+                logging.warning(f"Frame appears empty after cleaning. Title: '{title}'")
+                cleaned_content = f"This slide covers {title}."
+            parsed_slides.append(Slide(
+                frame_number=frame_number,
+                title=title,
+                content=cleaned_content
+            ))
+        frame_number += 1
 
-        # Extract title and content
-        title = extract_frame_title(frame_content)
-        cleaned_content = clean_latex_content(frame_content)
-
-        # Ensure we have content
-        if not cleaned_content.strip():
-            logging.warning(f"Frame appears empty after cleaning. Title: '{title}'")
-            cleaned_content = f"This slide covers {title}."
-
-        # Log the extracted content for debugging
-        logging.info(f"Slide {frame_number}: {title}")
-        logging.info(f"Extracted Content:\n{cleaned_content}")
-        logging.info("-" * 80)
-
-        # Add the slide to our collection
-        parsed_slides.append(Slide(
-            frame_number=frame_number,
-            title=title,
-            content=cleaned_content
-        ))
-
-    logging.info(f"Successfully parsed {len(parsed_slides)} slides to match PDF page count of {pdf_page_count}.")
+    logging.info(f"Successfully parsed {len(parsed_slides)} slides (including sections as slides) to match PDF page count of {pdf_page_count}.")
     return parsed_slides
 
 if __name__ == '__main__':
