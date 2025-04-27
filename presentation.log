@@ -1,9 +1,9 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2024.10.5)  27 APR 2025 15:11
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2024.10.5)  27 APR 2025 14:07
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**/home/lemke/latex2video/assets/presentation.tex
-(/home/lemke/latex2video/assets/presentation.tex
+**assets/presentation.tex
+(./assets/presentation.tex
 LaTeX2e <2021-11-15> patch level 1
 L3 programming layer <2022-01-21>
 (/usr/share/texlive/texmf-dist/tex/latex/beamer/beamer.cls
@@ -791,7 +791,7 @@ File: l3backend-pdftex.def 2022-01-12 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count331
 \l__pdf_internal_box=\box76
 )
-(./presentation.aux)
+No file presentation.aux.
 \openout1 = `presentation.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 71.
@@ -812,7 +812,6 @@ LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 71.
 LaTeX Font Info:    ... okay on input line 71.
 LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 71.
 LaTeX Font Info:    ... okay on input line 71.
-
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
 *geometry* verbose mode - [ preamble ] result:
@@ -893,8 +892,6 @@ Package: gettitlestring 2019/12/15 v1.6 Cleanup title references (HO)
 LaTeX Info: Redefining \ref on input line 71.
 LaTeX Info: Redefining \pageref on input line 71.
 LaTeX Info: Redefining \nameref on input line 71.
-
-(./presentation.out) (./presentation.out)
 \@outlinefile=\write5
 \openout5 = `presentation.out'.
 
@@ -964,22 +961,16 @@ Dictionary: translator-numbers-dictionary, Language: English
 (/usr/share/texlive/texmf-dist/tex/latex/translator/translator-theorem-dictiona
 ry-English.dict
 Dictionary: translator-theorem-dictionary, Language: English 
-) (./presentation.nav) [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
+)
+No file presentation.nav.
+[1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
 
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+]
+No file presentation.toc.
 [2
 
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+]
+No file presentation.toc.
 [3
 
 ]
@@ -1000,13 +991,7 @@ LaTeX Font Info:    Font shape `OT1/phv/m/it' in size <8> not available
 (Font)              Font shape `OT1/phv/m/sl' tried instead on input line 91.
 LaTeX Font Info:    Font shape `OT1/phv/m/it' in size <6> not available
 (Font)              Font shape `OT1/phv/m/sl' tried instead on input line 91.
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[4
+ [4
 
 ]
 
@@ -1022,12 +1007,6 @@ I could not locate the file with any of these extensions:
 .pdf,.png,.jpg,.mps,.jpeg,.jbig2,.jb2,.PDF,.PNG,.JPG,.JPEG,.JBIG2,.JB2,.eps
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
-
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
 
 [5
 
@@ -1046,45 +1025,17 @@ I could not locate the file with any of these extensions:
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [6
 
+] [7
+
 ]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[7
-
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+No file presentation.toc.
 [8
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [9
 
-[9
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[10
+] [10
 
 ]
 
@@ -1101,29 +1052,11 @@ I could not locate the file with any of these extensions:
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [11
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [12
 
-[12
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[13
+] [13
 
 ]
 
@@ -1140,88 +1073,32 @@ I could not locate the file with any of these extensions:
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [14
 
+] [15
+
 ]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[15
-
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+No file presentation.toc.
 [16
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [17
 
-[17
+] [18
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [19
 
-[18
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[19
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[20
+] [20
 
 ]
 
 LaTeX Warning: Command \r invalid in math mode on input line 246.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [21
 
+] [22
+
 ]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[22
-
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+No file presentation.toc.
 [23
 
 ]
@@ -1238,12 +1115,6 @@ I could not locate the file with any of these extensions:
 .pdf,.png,.jpg,.mps,.jpeg,.jbig2,.jb2,.PDF,.PNG,.JPG,.JPEG,.JBIG2,.JB2,.eps
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
-
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
 
 [24
 
@@ -1262,28 +1133,12 @@ I could not locate the file with any of these extensions:
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [25
 
+] [26
+
 ]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[26
-
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+No file presentation.toc.
 [27
 
 ]
@@ -1301,149 +1156,47 @@ I could not locate the file with any of these extensions:
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [28
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [29
 
-[29
+] [30
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [31
 
-[30
+] [32
+
+] [33
+
+] [34
 
 ]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[31
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[32
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[33
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[34
-
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+No file presentation.toc.
 [35
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [36
 
-[36
+] [37
 
 ]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[37
-
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+No file presentation.toc.
 [38
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [39
 
-[39
+] [40
+
+] [41
 
 ]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[40
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[41
-
-] (./presentation.toc)
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
+No file presentation.toc.
 [42
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
+] [43
 
-[43
+] [44
 
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[44
-
-]
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
-[45
+] [45
 
 ]
 
@@ -1459,12 +1212,6 @@ I could not locate the file with any of these extensions:
 .pdf,.png,.jpg,.mps,.jpeg,.jbig2,.jb2,.PDF,.PNG,.JPG,.JPEG,.JBIG2,.JB2,.eps
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
-
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
 
 [46
 
@@ -1483,12 +1230,6 @@ I could not locate the file with any of these extensions:
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [47
 
 ]
@@ -1505,12 +1246,6 @@ I could not locate the file with any of these extensions:
 .pdf,.png,.jpg,.mps,.jpeg,.jbig2,.jb2,.PDF,.PNG,.JPG,.JPEG,.JBIG2,.JB2,.eps
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
-
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
 
 [48
 
@@ -1529,12 +1264,6 @@ I could not locate the file with any of these extensions:
 Try typing  <return>  to proceed.
 If that doesn't work, type  X <return>  to quit.
 
-
-Overfull \hbox (23.85832pt too wide) has occurred while \output is active
-  [][] [][][][][][] [][][][][][][][][] [][][][][][][][] [][][][][] [][][][][][]
-[][][] [][][][] [][][][][] [][][][][][][][][]  
- []
-
 [49
 
 ]
@@ -1548,17 +1277,23 @@ Overfull \hbox (23.85832pt too wide) has occurred while \output is active
 \openout8 = `presentation.snm'.
 
  (./presentation.aux)
-Package rerunfilecheck Info: File `presentation.out' has not changed.
-(rerunfilecheck)             Checksum: BC1DA0B68E8CA3BCC98BC6816DAA6E8F;1148.
+
+Package rerunfilecheck Warning: File `presentation.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+Package rerunfilecheck Info: Checksums for `presentation.out':
+(rerunfilecheck)             Before: <no file>
+(rerunfilecheck)             After:  BC1DA0B68E8CA3BCC98BC6816DAA6E8F;1148.
  ) 
 Here is how much of TeX's memory you used:
- 24214 strings out of 478287
- 474734 string characters out of 5849289
- 756440 words of memory out of 5000000
- 41752 multiletter control sequences out of 15000+600000
- 492824 words of font info for 69 fonts, out of 8000000 for 9000
+ 23983 strings out of 478287
+ 471280 string characters out of 5849289
+ 732555 words of memory out of 5000000
+ 41549 multiletter control sequences out of 15000+600000
+ 490094 words of font info for 66 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 128i,20n,122p,423b,795s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 128i,16n,122p,399b,607s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}</usr/share/texliv
 e/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texm
 f-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist
@@ -1569,10 +1304,10 @@ amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfon
 ts/cm/cmsy8.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/helvetic/uhvb8a.
 pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/helvetic/uhvr8a.pfb></usr/sh
 are/texlive/texmf-dist/fonts/type1/urw/helvetic/uhvro8a.pfb>
-Output written on presentation.pdf (49 pages, 315694 bytes).
+Output written on presentation.pdf (49 pages, 192625 bytes).
 PDF statistics:
- 4199 PDF objects out of 4296 (max. 8388607)
- 4066 compressed objects within 41 object streams
+ 1374 PDF objects out of 1440 (max. 8388607)
+ 1272 compressed objects within 13 object streams
  109 named destinations out of 1000 (max. 500000)
- 207 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 115 words of extra memory for PDF output out of 10000 (max. 10000000)
 

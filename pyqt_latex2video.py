@@ -12,8 +12,13 @@ import yaml
 import threading
 import queue
 import time
+import shutil
 from typing import List, Dict, Optional
 from openai import OpenAI
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.info("[MARKER] pyqt_latex2video.py loaded and running from: " + os.path.abspath(__file__))
+print("[PRINT-MARKER] pyqt_latex2video.py loaded and running from:", os.path.abspath(__file__))
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
@@ -52,20 +57,37 @@ class Worker(QObject):
 
     def __init__(self, fn, *args, **kwargs):
         super().__init__()
+        print("[PRINT-DEBUG] Worker.__init__ called")
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
 
     def run(self):
         """Run the worker function"""
+        print("[PRINT-DEBUG] Worker.run called")
         try:
             result = self.fn(*self.args, **self.kwargs)
             self.result.emit(result)
         except Exception as e:
+            print("[PRINT-DEBUG] Exception in Worker.run:", e)
             self.error.emit(str(e))
             logging.error(f"Error in worker thread: {e}")
         finally:
             self.finished.emit()
+
+    def _generate_images_worker(self, latex_file):
+        """Worker function for generating images"""
+        try:
+            print("[PRINT-DEBUG] ENTERED _generate_images_worker")
+            # Add the LaTeX file path to the configuration
+            config_copy = self.config.copy()
+            config_copy['latex_file_path'] = os.path.abspath(latex_file)
+            print("[PRINT-DEBUG] About to call generate_slide_images in src.image_generator.py")
+            # Generate slide images
+            return generate_slide_images(latex_file, config_copy)
+        except Exception as e:
+            print("[PRINT-DEBUG] Exception in _generate_images_worker:", e)
+            raise
 
 class RedirectText:
     """Class to redirect stdout/stderr to a QTextEdit widget"""
@@ -489,9 +511,19 @@ class LaTeX2VideoGUI(QMainWindow):
             "LaTeX Files (*.tex);;All Files (*.*)"
         )
         if file_path:
+            # Clean output directories when a new LaTeX file is loaded
+            for outdir in ["output", "output-lagrange", "output-test"]:
+                abs_outdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), outdir)
+                if os.path.exists(abs_outdir):
+                    shutil.rmtree(abs_outdir)
+                os.makedirs(abs_outdir, exist_ok=True)
             self.latex_file_path = file_path
             self.latex_file_edit.setText(file_path)
             self.update_status(f"LaTeX file selected: {file_path}")
+            # Automatically parse LaTeX and generate slides after loading
+            self.parse_latex()
+            # Automatically generate images after parsing LaTeX
+            self.generate_images()
 
     def browse_config_file(self):
         """Open file dialog to select config file"""
@@ -589,52 +621,25 @@ class LaTeX2VideoGUI(QMainWindow):
             
             self.update_status(f"Successfully parsed {len(self.slides)} slides.")
             QMessageBox.information(self, "Success", f"Successfully parsed {len(self.slides)} slides.")
-            
+
+            # Copy generated PDF to output/temp_pdf
+            try:
+                base_name = os.path.splitext(os.path.basename(self.latex_file_path))[0]
+                src_pdf = os.path.join(os.path.dirname(self.latex_file_path), f"{base_name}.pdf")
+                dest_dir = os.path.join(self.output_dir, "temp_pdf")
+                dest_pdf = os.path.join(dest_dir, f"{base_name}.pdf")
+                if os.path.exists(src_pdf):
+                    os.makedirs(dest_dir, exist_ok=True)
+                    shutil.copy2(src_pdf, dest_pdf)
+                    logging.info(f"[PARSE_LATEX] Copied PDF from {src_pdf} to {dest_pdf}")
+                else:
+                    logging.warning(f"[PARSE_LATEX] PDF not found to copy: {src_pdf}")
+            except Exception as e:
+                logging.error(f"[PARSE_LATEX] Error copying PDF after parse: {e}")
+
         except Exception as e:
             logging.error(f"Error parsing LaTeX file: {e}")
             QMessageBox.critical(self, "Error", f"Failed to parse LaTeX file: {e}")
-            self.update_status("Error parsing LaTeX file.")
-
-    def generate_scripts(self):
-        """Generate narration scripts for all slides using OpenAI API"""
-        if not self.slides:
-            QMessageBox.critical(self, "Error", "No slides available. Please parse a LaTeX file first.")
-            return
-        
-        # Check if config is loaded
-        if not self.load_config():
-            QMessageBox.critical(self, "Error", "Failed to load configuration. Please check your config file.")
-            return
-        
-        # Initialize OpenAI client
-        client = initialize_openai_client(self.config)
-        if not client:
-            QMessageBox.critical(self, "Error", "Failed to initialize OpenAI client. Please check your API key in the config file.")
-            return
-        
-        self.update_status("Generating narration scripts with OpenAI API...")
-        
-        # Create a worker thread
-        thread = QThread()
-        worker = Worker(self._generate_scripts_worker, client)
-        worker.moveToThread(thread)
-        
-        # Connect signals
-        thread.started.connect(worker.run)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        worker.result.connect(self._on_scripts_generated)
-        worker.error.connect(self._on_error)
-        worker.progress.connect(self.update_status)
-        
-        # Start the thread
-        thread.start()
-        
-        # Keep a reference to the thread
-        self.threads.append(thread)
-        
-        self.update_status(f"Started script generation thread")
 
     def _generate_scripts_worker(self, client):
         """Worker function for generating scripts with OpenAI API"""
@@ -902,52 +907,126 @@ class LaTeX2VideoGUI(QMainWindow):
         # Store the image path for potential resizing
         self.current_image_path = None
         
-        # Check for common image formats
+        # Check for common image formats, with and without leading zeros
         for ext in ['png', 'jpg', 'jpeg']:
+            # Try with leading zeros (slide_001.png)
+            image_path_zeros = os.path.join(slides_dir, f'slide_{slide_number:03d}.{ext}')
+            if os.path.exists(image_path_zeros):
+                try:
+                    pixmap = QPixmap(image_path_zeros)
+                    if not pixmap.isNull():
+                        self.current_image_path = image_path_zeros
+                        pixmap = pixmap.scaled(
+                            self.slide_image_label.width(),
+                            self.slide_image_label.height(),
+                            Qt.KeepAspectRatio,
+                            Qt.SmoothTransformation
+                        )
+                        self.slide_image_label.setPixmap(pixmap)
+                        self.slide_image_label.setText('')
+                        self.update_status(f'Loaded slide image: {image_path_zeros}')
+                        return
+                except Exception as e:
+                    logging.error(f'Error loading image {image_path_zeros}: {e}')
+            # Try without leading zeros (slide_1.png)
             image_path = os.path.join(slides_dir, f'slide_{slide_number}.{ext}')
             if os.path.exists(image_path):
                 try:
-                    # Load the image
                     pixmap = QPixmap(image_path)
                     if not pixmap.isNull():
-                        # Store the original image path for resizing
                         self.current_image_path = image_path
-                        
-                        # Scale the image to fit the label while maintaining aspect ratio
                         pixmap = pixmap.scaled(
-                            self.slide_image_label.width(), 
+                            self.slide_image_label.width(),
                             self.slide_image_label.height(),
-                            Qt.KeepAspectRatio, 
+                            Qt.KeepAspectRatio,
                             Qt.SmoothTransformation
                         )
-                        
-                        # Display the image
                         self.slide_image_label.setPixmap(pixmap)
-                        self.slide_image_label.setText('')  # Clear the 'No image available' text
-                        
-                        # Update status
+                        self.slide_image_label.setText('')
                         self.update_status(f'Loaded slide image: {image_path}')
                         return
                 except Exception as e:
                     logging.error(f'Error loading image {image_path}: {e}')
 
+    def generate_scripts(self):
+        """Generate narration scripts for all slides using OpenAI API"""
+        if not self.slides:
+            QMessageBox.critical(self, "Error", "No slides available. Please parse a LaTeX file first.")
+            return
+
+        # Check if config is loaded
+        if not self.load_config():
+            QMessageBox.critical(self, "Error", "Failed to load configuration. Please check your config file.")
+            return
+
+        # Initialize OpenAI client
+        try:
+            from src.openai_script_generator import initialize_openai_client
+            client = initialize_openai_client(self.config)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to initialize OpenAI client: {e}")
+            return
+
+        if not client:
+            QMessageBox.critical(self, "Error", "Failed to initialize OpenAI client. Please check your API key in the config file.")
+            return
+
+        self.update_status("Generating narration scripts with OpenAI API...")
+
+        # Create a worker thread
+        thread = QThread()
+        worker = Worker(self._generate_scripts_worker, client)
+        worker.moveToThread(thread)
+
+        # Keep explicit references to prevent garbage collection
+        self._current_scripts_thread = thread
+        self._current_scripts_worker = worker
+
+        # Connect signals
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        worker.result.connect(self._on_scripts_generated)
+        worker.error.connect(self._on_error)
+        worker.progress.connect(self.update_status)
+
+        # Start the thread
+        thread.start()
+        print("[PRINT-DEBUG] QThread started for script generation")
+
+        # Keep a reference to the thread
+        self.threads.append(thread)
+
     def generate_images(self):
         """Generate images from the LaTeX file"""
+        print("[PRINT-DEBUG] ENTERED generate_images(self)")
         if not self.load_config():
             return
-        
+
         latex_file = self.latex_file_path
+        output_dir = self.output_dir
+        logging.info(f"[DEBUG] generate_images: latex_file={latex_file}")
+        logging.info(f"[DEBUG] generate_images: output_dir={output_dir}")
         if not latex_file or not os.path.exists(latex_file):
             QMessageBox.critical(self, 'Error', 'Please select a valid LaTeX file first.')
             return
-        
+
+        # Check if PDF exists before conversion
+        pdf_path = os.path.join(output_dir, "temp_pdf", os.path.splitext(os.path.basename(latex_file))[0] + ".pdf")
+        logging.info(f"[DEBUG] generate_images: expected PDF path={pdf_path}, exists={os.path.exists(pdf_path)}")
+
         self.update_status('Generating slide images...')
-        
+
         # Create a worker thread
         thread = QThread()
         worker = Worker(self._generate_images_worker, latex_file)
         worker.moveToThread(thread)
-        
+
+        # Keep explicit references to prevent garbage collection
+        self._current_image_thread = thread
+        self._current_image_worker = worker
+
         # Connect signals
         thread.started.connect(worker.run)
         worker.finished.connect(thread.quit)
@@ -955,19 +1034,22 @@ class LaTeX2VideoGUI(QMainWindow):
         thread.finished.connect(thread.deleteLater)
         worker.result.connect(self._on_images_generated)
         worker.error.connect(self._on_error)
-        
+
         # Start the thread
         thread.start()
-        
+        print("[PRINT-DEBUG] QThread started for image generation")
+
         # Keep a reference to the thread
         self.threads.append(thread)
 
     def _generate_images_worker(self, latex_file):
         """Worker function for generating images"""
+        print("[PRINT-DEBUG] ENTERED _generate_images_worker")
         # Add the LaTeX file path to the configuration
         config_copy = self.config.copy()
         config_copy['latex_file_path'] = os.path.abspath(latex_file)
         
+        print("[PRINT-DEBUG] About to call generate_slide_images in src.image_generator.py")
         # Generate slide images
         return generate_slide_images(latex_file, config_copy)
 

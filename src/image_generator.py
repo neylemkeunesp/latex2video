@@ -7,6 +7,8 @@ from typing import List, Dict, Optional
 import yaml
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.info("[MARKER] src/image_generator.py loaded and running from: " + os.path.abspath(__file__))
+print("[PRINT-DEBUG] THIS IS THE ONLY src/image_generator.py:", os.path.abspath(__file__))
 
 def load_config(config_path: str = '../config/config.yaml') -> Dict:
     """Loads configuration from YAML file."""
@@ -129,6 +131,7 @@ def convert_pdf_to_images(pdf_path: str, output_folder: str, dpi: int, image_for
     # Approach 1: Default settings
     try:
         logging.info("Attempting conversion with default settings...")
+        print("[PRINT-DEBUG] convert_from_path starting (default settings)...")
         images = convert_from_path(
             pdf_path,
             dpi=dpi,
@@ -136,13 +139,14 @@ def convert_pdf_to_images(pdf_path: str, output_folder: str, dpi: int, image_for
             fmt=image_format.lower(),
             paths_only=True
         )
+        print("[PRINT-DEBUG] convert_from_path finished (default settings)")
         
         if images:
             logging.info(f"Successfully converted PDF to {len(images)} images with default settings")
             
             # Rename files to simple slide_1.png, slide_2.png etc.
             for i, img_path in enumerate(images):
-                new_name = os.path.join(output_folder, f"slide_{i + 1}.{image_format.lower()}")
+                new_name = os.path.join(output_folder, f"slide_{i + 1:03d}.{image_format.lower()}")
                 try:
                     os.rename(img_path, new_name)
                     image_paths.append(new_name)
@@ -176,7 +180,7 @@ def convert_pdf_to_images(pdf_path: str, output_folder: str, dpi: int, image_for
             
             # Rename files to simple slide_1.png, slide_2.png etc.
             for i, img_path in enumerate(images):
-                new_name = os.path.join(output_folder, f"slide_{i + 1}.{image_format.lower()}")
+                new_name = os.path.join(output_folder, f"slide_{i + 1:03d}.{image_format.lower()}")
                 try:
                     os.rename(img_path, new_name)
                     image_paths.append(new_name)
@@ -206,7 +210,7 @@ def convert_pdf_to_images(pdf_path: str, output_folder: str, dpi: int, image_for
             # Rename files to simple slide_1.png, slide_2.png etc.
             for i, img_file in enumerate(image_files):
                 img_path = os.path.join(output_folder, img_file)
-                new_name = os.path.join(output_folder, f"slide_{i + 1}.{image_format.lower()}")
+                new_name = os.path.join(output_folder, f"slide_{i + 1:03d}.{image_format.lower()}")
                 
                 try:
                     os.rename(img_path, new_name)
@@ -236,12 +240,37 @@ def generate_slide_images(latex_file_path: str, config: Dict) -> List[str]:
 
     # 1. Compile LaTeX to PDF
     pdf_path = compile_latex_to_pdf(latex_file_path, pdf_output_dir)
-    if not pdf_path:
-        return []
+    logging.info(f"[PATCH-DEBUG] After compile_latex_to_pdf: pdf_path={pdf_path}, exists={os.path.exists(pdf_path) if pdf_path else False}")
+    # [PATCH] Only proceed if PDF file actually exists
+    if not pdf_path or not os.path.exists(pdf_path):
+        base_name = os.path.splitext(os.path.basename(latex_file_path))[0]
+        possible_pdf = os.path.join(os.path.dirname(latex_file_path), f"{base_name}.pdf")
+        dest_pdf = os.path.join(pdf_output_dir, f"{base_name}.pdf")
+        logging.info(f"[PATCH] compile_latex_to_pdf returned: {pdf_path}, exists={os.path.exists(pdf_path) if pdf_path else False}")
+        logging.info(f"[PATCH] Attempting to copy PDF from {possible_pdf} to {dest_pdf}")
+        if os.path.exists(possible_pdf):
+            import shutil
+            try:
+                os.makedirs(pdf_output_dir, exist_ok=True)
+                shutil.copy2(possible_pdf, dest_pdf)
+                logging.info(f"[PATCH] PDF copied from {possible_pdf} to {dest_pdf}")
+                pdf_path = dest_pdf
+            except Exception as e:
+                logging.error(f"[PATCH] Error copying PDF from {possible_pdf} to {dest_pdf}: {e}")
+                return []
+        else:
+            logging.error(f"[PATCH] PDF not found in expected locations: {possible_pdf}")
+            return []
 
     # 2. Convert PDF to Images
-    image_paths = convert_pdf_to_images(pdf_path, slides_output_dir, dpi, image_format)
-    
+    try:
+        logging.info(f"[PATCH-DEBUG] Calling convert_pdf_to_images with pdf_path={pdf_path}, slides_output_dir={slides_output_dir}")
+        image_paths = convert_pdf_to_images(pdf_path, slides_output_dir, dpi, image_format)
+        logging.info(f"[PATCH-DEBUG] convert_pdf_to_images returned {len(image_paths)} images: {image_paths}")
+    except Exception as e:
+        logging.error(f"[PATCH-DEBUG] Exception in convert_pdf_to_images: {e}")
+        image_paths = []
+
     # Optional: Clean up temporary PDF and LaTeX aux files
     # Consider keeping logs for debugging
     # try:
