@@ -324,8 +324,10 @@ def parse_latex_file(file_path: str) -> List[Slide]:
             break
         if slide_match['type'] == 'section':
             section_title = slide_match['title'].strip()
-            # Não adicionar se for igual a Title Page ou Outline
+            # Não adicionar se for igual a Title Page, Outline ou ao título do documento
             if section_title.lower() in ["title page", "outline"]:
+                continue
+            if doc_title and section_title.strip().lower() == doc_title.strip().lower():
                 continue
             # Não adicionar se for igual ao último título adicionado
             if last_title is not None and section_title == last_title:
@@ -342,6 +344,11 @@ def parse_latex_file(file_path: str) -> List[Slide]:
             cleaned_content = clean_latex_content(slide_match['content'])
             # Não adicionar se o título for igual ao último título adicionado
             if last_title is not None and title == last_title:
+                continue
+            # Não adicionar se o título for igual ao título do documento ou "Title Page"
+            if title.strip().lower() == "title page":
+                continue
+            if doc_title and title.strip().lower() == doc_title.strip().lower():
                 continue
             if not cleaned_content.strip():
                 logging.warning(f"Frame appears empty after cleaning. Title: '{title}'")
