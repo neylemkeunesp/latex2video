@@ -318,20 +318,31 @@ def parse_latex_file(file_path: str) -> List[Slide]:
 
     # Content slides (section and frame slides, in order)
     frame_number = 3
+    last_title = None
     for slide_match in all_slide_matches:
         if frame_number > pdf_page_count:
             break
         if slide_match['type'] == 'section':
-            # Section slide: title and content are the section title
+            section_title = slide_match['title'].strip()
+            # Não adicionar se for igual a Title Page ou Outline
+            if section_title.lower() in ["title page", "outline"]:
+                continue
+            # Não adicionar se for igual ao último título adicionado
+            if last_title is not None and section_title == last_title:
+                continue
             parsed_slides.append(Slide(
                 frame_number=frame_number,
-                title=slide_match['title'],
-                content=slide_match['title']
+                title=section_title,
+                content=section_title
             ))
+            last_title = section_title
         else:
-            # Frame slide: extract title and content as before
+            # Frame slide: extract title and content as antes
             title = extract_frame_title(slide_match['content'])
             cleaned_content = clean_latex_content(slide_match['content'])
+            # Não adicionar se o título for igual ao último título adicionado
+            if last_title is not None and title == last_title:
+                continue
             if not cleaned_content.strip():
                 logging.warning(f"Frame appears empty after cleaning. Title: '{title}'")
                 cleaned_content = f"This slide covers {title}."
@@ -340,6 +351,7 @@ def parse_latex_file(file_path: str) -> List[Slide]:
                 title=title,
                 content=cleaned_content
             ))
+            last_title = title
         frame_number += 1
 
     logging.info(f"Successfully parsed {len(parsed_slides)} slides (including sections as slides) to match PDF page count of {pdf_page_count}.")
