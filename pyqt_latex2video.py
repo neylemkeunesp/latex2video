@@ -1307,9 +1307,15 @@ class LaTeX2VideoGUI(QMainWindow):
         self.threads.append(thread3)
 
 
+from PyQt5.QtGui import QFont
+
 def main():
     """Main function to run the PyQt5 GUI"""
     app = QApplication(sys.argv)
+    # Definir fonte padrão maior para toda a aplicação
+    font = QFont()
+    font.setPointSize(16)  # Aumente conforme necessário (ex: 16, 18, 20)
+    app.setFont(font)
     window = LaTeX2VideoGUI()
     sys.exit(app.exec_())
 

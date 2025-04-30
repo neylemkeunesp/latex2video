@@ -302,14 +302,41 @@ def parse_latex_file(file_path: str) -> List[Slide]:
     # --- Build slides ---
     parsed_slides: List[Slide] = []
 
-    # Title page
+    # Filtrar slides duplicados de capa e sumário
+    def is_title_or_outline(title: str) -> bool:
+        if not title:
+            return False
+        t = title.strip().lower()
+        if t in ["title page", "outline"]:
+            return True
+        if doc_title and t == doc_title.strip().lower():
+            return True
+        return False
+
+    # Remove frames/sections que são "Title Page", "Outline" ou igual ao título do documento
+    filtered_slide_matches = []
+    for slide_match in all_slide_matches:
+        if slide_match.get('type') == 'section':
+            section_title = slide_match.get('title', '').strip()
+            if is_title_or_outline(section_title):
+                continue
+        else:
+            frame_content = slide_match.get('content', '')
+            frame_title = extract_frame_title(frame_content)
+            cleaned_content = clean_latex_content(frame_content).strip()
+            # Ignorar frames que são apenas \titlepage (ou vazios após limpeza)
+            if is_title_or_outline(frame_title):
+                continue
+            if cleaned_content == "" or cleaned_content == "\\titlepage" or cleaned_content == "titlepage":
+                continue
+        filtered_slide_matches.append(slide_match)
+
+    # Adiciona "Title Page" e "Outline" manualmente
     parsed_slides.append(Slide(
         frame_number=1,
         title="Title Page",
         content=f"Title: {doc_title}\nAuthor: {doc_author}"
     ))
-
-    # Outline slide
     parsed_slides.append(Slide(
         frame_number=2,
         title="Outline",
@@ -319,37 +346,20 @@ def parse_latex_file(file_path: str) -> List[Slide]:
     # Content slides (section and frame slides, in order)
     frame_number = 3
     last_title = None
-    for slide_match in all_slide_matches:
+    for slide_match in filtered_slide_matches:
         if frame_number > pdf_page_count:
             break
         if slide_match['type'] == 'section':
             section_title = slide_match['title'].strip()
-            # Não adicionar se for igual a Title Page, Outline ou ao título do documento
-            if section_title.lower() in ["title page", "outline"]:
-                continue
-            if doc_title and section_title.strip().lower() == doc_title.strip().lower():
-                continue
-            # Não adicionar se for igual ao último título adicionado
-            if last_title is not None and section_title == last_title:
-                continue
             parsed_slides.append(Slide(
                 frame_number=frame_number,
                 title=section_title,
                 content=section_title
             ))
-            last_title = section_title
         else:
             # Frame slide: extract title and content as antes
             title = extract_frame_title(slide_match['content'])
             cleaned_content = clean_latex_content(slide_match['content'])
-            # Não adicionar se o título for igual ao último título adicionado
-            if last_title is not None and title == last_title:
-                continue
-            # Não adicionar se o título for igual ao título do documento ou "Title Page"
-            if title.strip().lower() == "title page":
-                continue
-            if doc_title and title.strip().lower() == doc_title.strip().lower():
-                continue
             if not cleaned_content.strip():
                 logging.warning(f"Frame appears empty after cleaning. Title: '{title}'")
                 cleaned_content = f"This slide covers {title}."
@@ -358,7 +368,6 @@ def parse_latex_file(file_path: str) -> List[Slide]:
                 title=title,
                 content=cleaned_content
             ))
-            last_title = title
         frame_number += 1
 
     logging.info(f"Successfully parsed {len(parsed_slides)} slides (including sections as slides) to match PDF page count of {pdf_page_count}.")
