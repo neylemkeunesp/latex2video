@@ -210,10 +210,13 @@ def generate_narration_for_slide(slide: Slide, config: Dict) -> str:
         narration = "Vamos ver os principais tópicos que serão abordados nesta apresentação."
         return narration
     
-    # Special handling for section slides
-    if slide.title.startswith("Section:"):
-        section_name = slide.title.replace("Section:", "").strip()
-        narration = f"Agora vamos falar sobre {section_name}."
+    # Special handling for section slides (both "Section:" and "Seção:")
+    if slide.title.startswith("Section:") or slide.title.startswith("Seção:"):
+        if slide.title.startswith("Section:"):
+            section_name = slide.title.replace("Section:", "").strip()
+        else:
+            section_name = slide.title.replace("Seção:", "").strip()
+        narration = f"Seção {section_name}."
         return narration
     
     # Special handling for additional slides
