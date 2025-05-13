@@ -64,16 +64,24 @@ class Worker(QObject):
 
     def run(self):
         """Run the worker function"""
-        print("[PRINT-DEBUG] Worker.run called")
+        print("[PYQT_DEBUG] Worker.run: Entered (Restored Version).")
         try:
+            print(f"[PYQT_DEBUG] Worker.run: About to call self.fn: {self.fn.__name__ if hasattr(self.fn, '__name__') else 'unknown_fn'}")
             result = self.fn(*self.args, **self.kwargs)
+            print(f"[PYQT_DEBUG] Worker.run: self.fn call completed. Result: {type(result)}")
             self.result.emit(result)
+            print(f"[PYQT_DEBUG] Worker.run: self.result signal emitted.")
         except Exception as e:
-            print("[PRINT-DEBUG] Exception in Worker.run:", e)
+            print(f"[PYQT_DEBUG] Worker.run: Exception caught: {e}")
+            # print(traceback.format_exc()) # Optional: for more detail in console
             self.error.emit(str(e))
-            logging.error(f"Error in worker thread: {e}")
+            print(f"[PYQT_DEBUG] Worker.run: self.error signal emitted.")
+            logging.error(f"Error in worker thread ({self.fn.__name__ if hasattr(self.fn, '__name__') else 'unknown_fn'}): {e}", exc_info=True)
         finally:
+            print("[PYQT_DEBUG] Worker.run: Emitting finished signal.")
             self.finished.emit()
+            print("[PYQT_DEBUG] Worker.run: self.finished signal emitted. Exiting run method.")
+
 
     def _generate_images_worker(self, latex_file):
         """Worker function for generating images"""
@@ -644,8 +652,10 @@ class LaTeX2VideoGUI(QMainWindow):
     def _generate_scripts_worker(self, client):
         """Worker function for generating scripts with OpenAI API"""
         try:
+            print("[PRINT-DEBUG] _generate_scripts_worker: INICIOU")
             logging.info("========== SCRIPT GENERATION STARTED ==========")
             logging.info(f"Worker thread ID: {threading.get_ident()}")
+            print(f"[PRINT-DEBUG] _generate_scripts_worker: slides={len(self.slides)} client={client} config={self.config}")
             narrations = []
             prompts = []
             
@@ -658,8 +668,10 @@ class LaTeX2VideoGUI(QMainWindow):
             
             for i, slide in enumerate(self.slides):
                 try:
+                    print(f"[PRINT-DEBUG] _generate_scripts_worker: slide {i+1}/{len(self.slides)}")
                     # Format slide for script generation
                     formatted_content = format_slide_for_chatgpt(slide, self.slides, i)
+                    print(f"[PRINT-DEBUG] _generate_scripts_worker: formatted_content for slide {i+1} gerado")
                     
                     # Store the prompt
                     prompts.append(formatted_content)
@@ -678,10 +690,13 @@ class LaTeX2VideoGUI(QMainWindow):
                     logging.info(f"OpenAI config: {self.config.get('openai', {})}")
                     
                     try:
+                        print(f"[PRINT-DEBUG] _generate_scripts_worker: About to call generate_script_with_openai for slide {i+1}")
                         logging.info("About to call generate_script_with_openai")
                         script = generate_script_with_openai(client, formatted_content, self.config)
+                        print(f"[PRINT-DEBUG] _generate_scripts_worker: generate_script_with_openai returned for slide {i+1}")
                         logging.info(f"OpenAI API call completed. Response received: {bool(script)}")
                     except Exception as api_error:
+                        print(f"[PRINT-DEBUG] _generate_scripts_worker: Exception in generate_script_with_openai for slide {i+1}: {api_error}")
                         logging.error(f"Error calling OpenAI API: {api_error}")
                         logging.error(f"Error details: {str(api_error)}")
                         script = None
@@ -691,8 +706,10 @@ class LaTeX2VideoGUI(QMainWindow):
                         cleaned_script = clean_chatgpt_response(script)
                         narrations.append(cleaned_script)
                         logging.info(f"Successfully generated script for slide {i+1}")
+                        print(f"[PRINT-DEBUG] _generate_scripts_worker: Script for slide {i+1} gerado com sucesso")
                     else:
                         logging.info(f"Failed to generate script for slide {i+1}, using placeholder")
+                        print(f"[PRINT-DEBUG] _generate_scripts_worker: Script for slide {i+1} FALHOU, usando placeholder")
                         # Add a placeholder script
                         narrations.append(f"Script for slide {i+1} could not be generated.")
                     
@@ -703,16 +720,20 @@ class LaTeX2VideoGUI(QMainWindow):
                     
                     with open(prompt_path, 'w', encoding='utf-8') as f:
                         f.write(formatted_content)
+                    print(f"[PRINT-DEBUG] _generate_scripts_worker: Prompt salvo para slide {i+1}")
                         
                 except Exception as slide_error:
                     # Catch errors for individual slides but continue processing
                     error_msg = f"Error processing slide {i+1}: {str(slide_error)}"
+                    print(f"[PRINT-DEBUG] _generate_scripts_worker: Exception in slide {i+1}: {slide_error}")
                     logging.error(error_msg)
                     narrations.append(f"Error generating script for slide {i+1}: {str(slide_error)}")
             
+            print("[PRINT-DEBUG] _generate_scripts_worker: FIM, retornando narrations e prompts")
             return {"narrations": narrations, "prompts": prompts}
             
         except Exception as e:
+            print(f"[PRINT-DEBUG] _generate_scripts_worker: EXCEPTION GERAL: {e}")
             logging.error(f"Error in generate_scripts_worker: {e}")
             import traceback
             logging.error(traceback.format_exc())
@@ -774,49 +795,94 @@ class LaTeX2VideoGUI(QMainWindow):
 
     def load_scripts(self):
         """Load narration scripts and prompts from files"""
-        if not self.slides:
-            QMessageBox.critical(self, "Error", "No slides available. Please parse a LaTeX file first.")
-            return
-        
-        responses_dir = os.path.join(self.output_dir, 'chatgpt_responses')
-        prompts_dir = os.path.join(self.output_dir, 'chatgpt_prompts')
-        
-        if not os.path.exists(responses_dir):
-            QMessageBox.critical(self, "Error", f"Responses directory not found: {responses_dir}")
-            return
-        
+        import traceback
+        from PyQt5.QtCore import QThread, QTimer, QCoreApplication
         try:
+            logging.info("[LOAD_SCRIPTS] Iniciando carregamento de scripts")
+            logging.info(f"[LOAD_SCRIPTS] Thread atual: {QThread.currentThread()} (main={QCoreApplication.instance().thread()})")
+
+            responses_dir = os.path.join(self.output_dir, 'chatgpt_responses')
+            prompts_dir = os.path.join(self.output_dir, 'chatgpt_prompts')
+            logging.info(f"[LOAD_SCRIPTS] responses_dir: {responses_dir}")
+            logging.info(f"[LOAD_SCRIPTS] prompts_dir: {prompts_dir}")
+            logging.info(f"[LOAD_SCRIPTS] slides: {len(self.slides)} narrations: {len(self.narrations)} prompts: {len(self.prompts)}")
+
+            if not os.path.exists(responses_dir):
+                logging.error(f"[LOAD_SCRIPTS] Responses directory not found: {responses_dir}")
+                QMessageBox.critical(self, "Error", f"Responses directory not found: {responses_dir}")
+                return
+
+            # Se não houver slides, carrega apenas as narrações dos arquivos disponíveis
+            if not self.slides:
+                logging.warning("[LOAD_SCRIPTS] Nenhum slide disponível. Carregando scripts apenas para visualização/edição.")
+                files = sorted([f for f in os.listdir(responses_dir) if f.startswith("slide_") and f.endswith("_response.txt")])
+                self.narrations = []
+                for fname in files:
+                    response_path = os.path.join(responses_dir, fname)
+                    with open(response_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                        self.narrations.append(content)
+                        logging.info(f"[LOAD_SCRIPTS] Loaded narration {fname}: {repr(content)[:120]} from {response_path}")
+                self.current_slide_index = 0
+                self.update_status(f'Scripts loaded (sem slides LaTeX). Total: {len(self.narrations)}')
+                QMessageBox.information(self, 'Success', f'Scripts loaded (sem slides LaTeX). Total: {len(self.narrations)}')
+                if QThread.currentThread() != QCoreApplication.instance().thread():
+                    QTimer.singleShot(0, self.update_slide_display)
+                else:
+                    self.update_slide_display()
+                return
+
             # Initialize narrations list if needed
             if len(self.narrations) != len(self.slides):
+                logging.info(f"[LOAD_SCRIPTS] Ajustando narrations para {len(self.slides)}")
                 self.narrations = [""] * len(self.slides)
-            
+
             # Initialize prompts list if needed
             if len(self.prompts) != len(self.slides):
+                logging.info(f"[LOAD_SCRIPTS] Ajustando prompts para {len(self.slides)}")
                 self.prompts = [""] * len(self.slides)
-            
+
             # Load responses for all slides
             for i in range(len(self.slides)):
                 response_path = os.path.join(responses_dir, f'slide_{i+1}_response.txt')
                 if os.path.exists(response_path):
                     with open(response_path, 'r', encoding='utf-8') as f:
-                        self.narrations[i] = f.read().strip()
-            
+                        content = f.read().strip()
+                        self.narrations[i] = content
+                        logging.info(f"[LOAD_SCRIPTS] Loaded narration {i+1}: {repr(content)[:120]} from {response_path}")
+                else:
+                    logging.warning(f"[LOAD_SCRIPTS] Response file not found: {response_path}")
+
             # Load prompts for all slides if they exist
             if os.path.exists(prompts_dir):
                 for i in range(len(self.slides)):
                     prompt_path = os.path.join(prompts_dir, f'slide_{i+1}_prompt.txt')
                     if os.path.exists(prompt_path):
                         with open(prompt_path, 'r', encoding='utf-8') as f:
-                            self.prompts[i] = f.read().strip()
-            
-            # Update the display
-            self.update_slide_display()
-            
+                            content = f.read().strip()
+                            self.prompts[i] = content
+                            logging.info(f"[LOAD_SCRIPTS] Loaded prompt {i+1}: {repr(content)[:120]} from {prompt_path}")
+                    else:
+                        logging.warning(f"[LOAD_SCRIPTS] Prompt file not found: {prompt_path}")
+
+            logging.info(f"[LOAD_SCRIPTS] narrations after load: {len(self.narrations)} prompts after load: {len(self.prompts)}")
+            # Reset current slide index and update the display
+            self.current_slide_index = 0
+            logging.info(f"[LOAD_SCRIPTS] current_slide_index reset to 0")
+
+            # Garantir update_slide_display no thread principal
+            if QThread.currentThread() != QCoreApplication.instance().thread():
+                logging.info("[LOAD_SCRIPTS] update_slide_display será chamado via QTimer.singleShot(0, ...) no thread principal")
+                QTimer.singleShot(0, self.update_slide_display)
+            else:
+                self.update_slide_display()
+
             self.update_status('Scripts loaded.')
             QMessageBox.information(self, 'Success', 'Scripts and prompts loaded.')
-            
+
         except Exception as e:
-            logging.error(f'Error loading scripts: {e}')
+            logging.error(f'[LOAD_SCRIPTS] Error loading scripts: {e}')
+            logging.error(traceback.format_exc())
             QMessageBox.critical(self, 'Error', f'Failed to load scripts: {e}')
             self.update_status('Error loading scripts.')
 
@@ -1071,55 +1137,111 @@ class LaTeX2VideoGUI(QMainWindow):
         """Generate audio files from narration scripts"""
         if not self.load_config():
             return
-        
+
         if not self.slides or not self.narrations:
-            QMessageBox.critical(self, 'Error', 'No narration scripts available. Please generate scripts first.')
+            QMessageBox.critical(self, 'Error', 'No narration scripts available. Por favor, gere os scripts antes de gerar o áudio.')
             return
-        
+
+        # Verificação extra: garantir que as narrações não estejam vazias ou só com placeholders
+        narrations_validas = [n for n in self.narrations if n.strip() and not n.strip().startswith("Script for slide") and not n.strip().startswith("Error generating script")]
+        if len(narrations_validas) < len(self.narrations):
+            QMessageBox.critical(self, 'Error', 'Algumas narrações estão vazias ou inválidas. Gere os scripts para todos os slides antes de gerar o áudio.')
+            self.update_status('Erro: narrações vazias ou inválidas detectadas.')
+            return
+
         # Save current narration
         current_narration = self.narration_text.toPlainText().strip()
         self.narrations[self.current_slide_index] = current_narration
-        
+
         # Save all narrations to files first
         self.save_scripts()
-        
+
         self.update_status('Generating audio files...')
-        
+
         # Create a worker thread
         thread = QThread()
+        print("[PYQT_DEBUG] generate_audio: QThread object created.")
+        print("[PRINT-DEBUG] generate_audio: thread criado") # Existing user debug
         worker = Worker(self._generate_audio_worker)
+        print("[PYQT_DEBUG] generate_audio: Worker object created.")
         worker.moveToThread(thread)
+        print("[PYQT_DEBUG] generate_audio: Worker moved to thread.")
+        print("[PRINT-DEBUG] Depois worker.moveToThread(thread)") # Existing user debug
         
         # Connect signals
+        print("[PYQT_DEBUG] generate_audio: Connecting signals...")
         thread.started.connect(worker.run)
+        print("[PYQT_DEBUG] generate_audio: thread.started.connect(worker.run) connected.")
         worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
+        print("[PYQT_DEBUG] generate_audio: worker.finished.connect(thread.quit) connected.")
+        # worker.finished.connect(worker.deleteLater) # TEST: Commented out
+        # print("[PYQT_DEBUG] generate_audio: worker.finished.connect(worker.deleteLater) - COMMENTED OUT FOR TEST.")
+        
+        print("[PRINT-DEBUG] Depois 2 worker.moveToThread(thread)") # Existing user debug
+        # thread.finished.connect(thread.deleteLater) # TEST: Commented out
+        # print("[PYQT_DEBUG] generate_audio: thread.finished.connect(thread.deleteLater) - COMMENTED OUT FOR TEST.")
         worker.result.connect(self._on_audio_generated)
+        print("[PYQT_DEBUG] generate_audio: worker.result.connect(self._on_audio_generated) connected.")
         worker.error.connect(self._on_error)
-        
+        print("[PYQT_DEBUG] generate_audio: worker.error.connect(self._on_error) connected.")
+        print("[PYQT_DEBUG] generate_audio: All signals connected.")
+
+        print("[PRINT-DEBUG] Depois 3 worker.moveToThread(thread)") # Existing user debug
         # Start the thread
+        print("[PYQT_DEBUG] generate_audio: About to start thread...")
         thread.start()
-        
+        print("[PYQT_DEBUG] generate_audio: Thread started command issued.")
+
         # Keep a reference to the thread
         self.threads.append(thread)
 
     def _generate_audio_worker(self):
         """Worker function for generating audio"""
-        # Make a copy of the data to avoid thread issues
-        narrations_copy = self.narrations.copy()
-        config_copy = self.config.copy()
-        
-        # Generate audio files
-        return generate_all_audio(narrations_copy, config_copy)
+        print("[PYQT_DEBUG] _generate_audio_worker: Entered.")
+        import traceback
+        try:
+            print("[PYQT_DEBUG] _generate_audio_worker: Making copies of narrations and config.")
+            narrations_copy = self.narrations.copy()
+            config_copy = self.config.copy()
+            
+            # Using print instead of logging for immediate flush before potential crash
+            print(f"[PYQT_DEBUG] [AUDIO_WORKER] Iniciando geração de áudio. Narrations count: {len(narrations_copy)}")
+            print(f"[PYQT_DEBUG] [AUDIO_WORKER] Config output_dir: {config_copy.get('output_dir')}")
+            
+            # Log narrations if needed, but can be verbose
+            # for idx, n in enumerate(narrations_copy):
+            #     print(f"[PYQT_DEBUG] [AUDIO_WORKER] Narration {idx+1} (preview): {repr(n)[:60]}")
+
+            print("[PYQT_DEBUG] _generate_audio_worker: About to call generate_all_audio from src.audio_generator.")
+            audio_paths = generate_all_audio(narrations_copy, config_copy)
+            print(f"[PYQT_DEBUG] _generate_audio_worker: generate_all_audio returned. Result: {audio_paths}")
+            
+            if not audio_paths:
+                print("[PYQT_DEBUG] [AUDIO_WORKER] Nenhum arquivo de áudio foi gerado (audio_paths is None or empty).")
+            else:
+                for path in audio_paths:
+                    print(f"[PYQT_DEBUG] [AUDIO_WORKER] Áudio gerado: {path}")
+            print("[PYQT_DEBUG] _generate_audio_worker: Returning audio_paths.")
+            return audio_paths
+        except Exception as e:
+            print(f"[PYQT_DEBUG] [AUDIO_WORKER] Exception in _generate_audio_worker: {e}")
+            print(traceback.format_exc()) # Print traceback directly
+            # logging.error(f"[AUDIO_WORKER] Exception: {e}") # Keep logging if preferred
+            # logging.error(traceback.format_exc())
+            raise # Re-raise to be caught by Worker's main try-except
 
     def _on_audio_generated(self, audio_paths):
         """Handle the result of audio generation"""
+        logging.info(f"[ON_AUDIO_GENERATED] audio_paths: {audio_paths}")
         if not audio_paths:
-            QMessageBox.critical(self, 'Error', 'Failed to generate audio files.')
+            logging.error("[ON_AUDIO_GENERATED] Nenhum arquivo de áudio foi gerado.")
+            QMessageBox.critical(self, 'Error', 'Failed to generate audio files. Veja o log detalhado em latex2video_gui.log.')
             self.update_status('Failed to generate audio files.')
             return
-        
+
+        for path in audio_paths:
+            logging.info(f"[ON_AUDIO_GENERATED] Áudio gerado: {path}")
+
         self.update_status(f'Generated {len(audio_paths)} audio files.')
         QMessageBox.information(self, 'Success', f'Generated {len(audio_paths)} audio files.')
 
