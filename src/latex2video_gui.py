@@ -189,7 +189,9 @@ class LaTeX2VideoGUI:
         gen_controls.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Button(gen_controls, text="Generate Images", command=self.generate_images).pack(side=tk.LEFT, padx=5)
+        ttk.Button(gen_controls, text="Load Existing Images", command=self.load_existing_images).pack(side=tk.LEFT, padx=5)
         ttk.Button(gen_controls, text="Generate Audio", command=self.generate_audio).pack(side=tk.LEFT, padx=5)
+        ttk.Button(gen_controls, text="Load Existing Audio", command=self.load_existing_audio).pack(side=tk.LEFT, padx=5)
         ttk.Button(gen_controls, text="Assemble Video", command=self.assemble_video).pack(side=tk.LEFT, padx=5)
         ttk.Button(gen_controls, text="Generate All", command=self.generate_all).pack(side=tk.LEFT, padx=5)
         
@@ -370,17 +372,17 @@ class LaTeX2VideoGUI:
             self.narrations[self.current_slide_index] = current_narration
         
         # Save all narrations to files
-        output_dir = os.path.join(self.output_dir.get(), 'chatgpt_responses')
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir_path = os.path.join(self.output_dir.get(), 'chatgpt_responses')
+        os.makedirs(output_dir_path, exist_ok=True)
         
         try:
             for i, narration in enumerate(self.narrations):
-                file_path = os.path.join(output_dir, f"slide_{i+1}_response.txt")
+                file_path = os.path.join(output_dir_path, f"slide_{i+1}_response.txt")
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(narration)
             
             self.update_status("Narration scripts saved.")
-            messagebox.showinfo("Success", f"Narration scripts saved to {output_dir}")
+            messagebox.showinfo("Success", f"Narration scripts saved to {output_dir_path}")
             
         except Exception as e:
             logging.error(f"Error saving scripts: {e}")
@@ -393,15 +395,15 @@ class LaTeX2VideoGUI:
             messagebox.showerror("Error", "No slides available. Please parse a LaTeX file first.")
             return
         
-        output_dir = os.path.join(self.output_dir.get(), 'chatgpt_responses')
-        if not os.path.exists(output_dir):
-            messagebox.showerror("Error", f"Scripts directory not found: {output_dir}")
+        output_dir_path = os.path.join(self.output_dir.get(), 'chatgpt_responses')
+        if not os.path.exists(output_dir_path):
+            messagebox.showerror("Error", f"Scripts directory not found: {output_dir_path}")
             return
         
         try:
             # Load scripts for all slides
             for i in range(len(self.slides)):
-                file_path = os.path.join(output_dir, f"slide_{i+1}_response.txt")
+                file_path = os.path.join(output_dir_path, f"slide_{i+1}_response.txt")
                 if os.path.exists(file_path):
                     with open(file_path, 'r', encoding='utf-8') as f:
                         self.narrations[i] = f.read().strip()
@@ -505,6 +507,30 @@ class LaTeX2VideoGUI:
             self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to generate images: {e}"))
             self.root.after(0, lambda: self.update_status("Error generating images."))
 
+    def load_existing_images(self):
+        """Check for existing images in the output directory"""
+        if not self.load_config():
+            return
+
+        slides_dir = os.path.join(self.output_dir.get(), 'slides')
+        if not os.path.exists(slides_dir):
+            messagebox.showinfo("Info", f"Slides directory not found: {slides_dir}\nNo existing images loaded.")
+            self.update_status("Slides directory not found.")
+            return
+
+        try:
+            image_files = [f for f in os.listdir(slides_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+            if image_files:
+                messagebox.showinfo("Success", f"Found {len(image_files)} existing images in {slides_dir}.")
+                self.update_status(f"Loaded {len(image_files)} existing images.")
+            else:
+                messagebox.showinfo("Info", f"No existing images found in {slides_dir}.")
+                self.update_status("No existing images found.")
+        except Exception as e:
+            logging.error(f"Error loading existing images: {e}")
+            messagebox.showerror("Error", f"Failed to load existing images: {e}")
+            self.update_status("Error loading existing images.")
+
     def generate_audio(self):
         """Generate audio files from narration scripts"""
         if not self.load_config():
@@ -545,6 +571,30 @@ class LaTeX2VideoGUI:
             self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to generate audio: {e}"))
             self.root.after(0, lambda: self.update_status("Error generating audio."))
 
+    def load_existing_audio(self):
+        """Check for existing audio files in the output directory"""
+        if not self.load_config():
+            return
+
+        audio_dir = os.path.join(self.output_dir.get(), 'audio')
+        if not os.path.exists(audio_dir):
+            messagebox.showinfo("Info", f"Audio directory not found: {audio_dir}\nNo existing audio loaded.")
+            self.update_status("Audio directory not found.")
+            return
+
+        try:
+            audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.mp3')]
+            if audio_files:
+                messagebox.showinfo("Success", f"Found {len(audio_files)} existing audio files in {audio_dir}.")
+                self.update_status(f"Loaded {len(audio_files)} existing audio files.")
+            else:
+                messagebox.showinfo("Info", f"No existing audio files found in {audio_dir}.")
+                self.update_status("No existing audio files found.")
+        except Exception as e:
+            logging.error(f"Error loading existing audio: {e}")
+            messagebox.showerror("Error", f"Failed to load existing audio: {e}")
+            self.update_status("Error loading existing audio.")
+
     def assemble_video(self):
         """Assemble the final video from images and audio"""
         if not self.load_config():
@@ -555,11 +605,11 @@ class LaTeX2VideoGUI:
         audio_dir = os.path.join(self.output_dir.get(), 'audio')
         
         if not os.path.exists(slides_dir) or not os.listdir(slides_dir):
-            messagebox.showerror("Error", "No slide images found. Please generate images first.")
+            messagebox.showerror("Error", "No slide images found. Please generate or load images first.")
             return
         
         if not os.path.exists(audio_dir) or not os.listdir(audio_dir):
-            messagebox.showerror("Error", "No audio files found. Please generate audio first.")
+            messagebox.showerror("Error", "No audio files found. Please generate or load audio first.")
             return
         
         self.update_status("Assembling video...")
@@ -637,4 +687,49 @@ class LaTeX2VideoGUI:
                 self.root.after(0, lambda: self.update_status("Failed to generate slide images."))
                 return
             
-            self.root.after(0, lambda: self
+            self.root.after(0, lambda: self.update_status(f"Step 1: Generated {len(image_paths)} slide images."))
+            
+            # 2. Generate audio files
+            self.root.after(0, lambda: self.update_status("Step 2: Generating audio files..."))
+            audio_paths = generate_all_audio(self.narrations, self.config)
+            
+            if not audio_paths:
+                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to generate audio files."))
+                self.root.after(0, lambda: self.update_status("Failed to generate audio files."))
+                return
+                
+            self.root.after(0, lambda: self.update_status(f"Step 2: Generated {len(audio_paths)} audio files."))
+            
+            # 3. Assemble video
+            self.root.after(0, lambda: self.update_status("Step 3: Assembling video..."))
+            slides_dir = os.path.join(self.output_dir.get(), 'slides')
+            audio_dir = os.path.join(self.output_dir.get(), 'audio')
+            
+            image_files = sorted([os.path.join(slides_dir, f) for f in os.listdir(slides_dir) if f.endswith(('.png', '.jpg', '.jpeg'))])
+            audio_files = sorted([os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith('.mp3')])
+            
+            if len(image_files) != len(audio_files):
+                self.root.after(0, lambda: messagebox.showerror("Error", 
+                    f"Mismatch between number of images ({len(image_files)}) and audio files ({len(audio_files)})."))
+                self.root.after(0, lambda: self.update_status("Failed to assemble video."))
+                return
+
+            output_path = assemble_video(image_files, audio_files, self.config)
+            
+            if not output_path:
+                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to assemble video."))
+                self.root.after(0, lambda: self.update_status("Failed to assemble video."))
+                return
+            
+            self.root.after(0, lambda: self.update_status(f"Video assembled: {output_path}"))
+            self.root.after(0, lambda: messagebox.showinfo("Success", f"Video assembled: {output_path}"))
+            
+        except Exception as e:
+            logging.error(f"Error in generate_all_thread: {e}")
+            self.root.after(0, lambda: messagebox.showerror("Error", f"Failed during 'Generate All': {e}"))
+            self.root.after(0, lambda: self.update_status(f"Error during 'Generate All': {e}"))
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = LaTeX2VideoGUI(root)
+    root.mainloop()

@@ -427,10 +427,18 @@ class LaTeX2VideoGUI(QMainWindow):
         gen_images_button = QPushButton("Generate Images")
         gen_images_button.clicked.connect(self.generate_images)
         gen_controls_layout.addWidget(gen_images_button)
+
+        load_images_button = QPushButton("Load Existing Images")
+        load_images_button.clicked.connect(self.load_existing_images_qt)
+        gen_controls_layout.addWidget(load_images_button)
         
         gen_audio_button = QPushButton("Generate Audio")
         gen_audio_button.clicked.connect(self.generate_audio)
         gen_controls_layout.addWidget(gen_audio_button)
+
+        load_audio_button = QPushButton("Load Existing Audio")
+        load_audio_button.clicked.connect(self.load_existing_audio_qt)
+        gen_controls_layout.addWidget(load_audio_button)
         
         assemble_button = QPushButton("Assemble Video")
         assemble_button.clicked.connect(self.assemble_video)
@@ -1460,6 +1468,57 @@ class LaTeX2VideoGUI(QMainWindow):
         
         # Keep a reference to the thread
         self.threads.append(thread1)
+
+    def load_existing_images_qt(self):
+        """Check for existing images in the output directory (PyQt version)"""
+        if not self.load_config(): # Ensures config and output_dir are loaded
+            return
+
+        slides_dir = os.path.join(self.output_dir, 'slides')
+        if not os.path.exists(slides_dir):
+            QMessageBox.information(self, "Info", f"Slides directory not found: {slides_dir}\nNo existing images loaded.")
+            self.update_status("Slides directory not found.")
+            return
+
+        try:
+            image_files = [f for f in os.listdir(slides_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+            if image_files:
+                QMessageBox.information(self, "Success", f"Found {len(image_files)} existing images in {slides_dir}.")
+                self.update_status(f"Checked for existing images: {len(image_files)} found.")
+                # Optionally, trigger an update to display the first available image if slides are parsed
+                if self.slides:
+                    self.load_slide_image()
+            else:
+                QMessageBox.information(self, "Info", f"No existing images found in {slides_dir}.")
+                self.update_status("No existing images found in slides directory.")
+        except Exception as e:
+            logging.error(f"Error loading existing images: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to check for existing images: {e}")
+            self.update_status("Error checking for existing images.")
+
+    def load_existing_audio_qt(self):
+        """Check for existing audio files in the output directory (PyQt version)"""
+        if not self.load_config(): # Ensures config and output_dir are loaded
+            return
+
+        audio_dir = os.path.join(self.output_dir, 'audio')
+        if not os.path.exists(audio_dir):
+            QMessageBox.information(self, "Info", f"Audio directory not found: {audio_dir}\nNo existing audio loaded.")
+            self.update_status("Audio directory not found.")
+            return
+
+        try:
+            audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.mp3')]
+            if audio_files:
+                QMessageBox.information(self, "Success", f"Found {len(audio_files)} existing audio files in {audio_dir}.")
+                self.update_status(f"Checked for existing audio: {len(audio_files)} files found.")
+            else:
+                QMessageBox.information(self, "Info", f"No existing audio files found in {audio_dir}.")
+                self.update_status("No existing audio files found in audio directory.")
+        except Exception as e:
+            logging.error(f"Error loading existing audio: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to check for existing audio: {e}")
+            self.update_status("Error checking for existing audio.")
     
     def _continue_with_audio(self, image_paths):
         """Continue with audio generation after images are generated"""
