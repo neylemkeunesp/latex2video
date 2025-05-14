@@ -234,6 +234,23 @@ class LaTeX2VideoGUI(QMainWindow):
         # Initialize status
         self.update_status("Ready")
 
+        # Pre-initialize GTTSProvider in main thread if gtts is the provider
+        # This is a test to see if it affects threading issues.
+        if self.config.get('tts', {}).get('provider', '').lower() == 'gtts':
+            try:
+                print("[PYQT_DEBUG] __init__: Attempting to pre-initialize GTTSProvider in main thread...")
+                from src.tts_provider import GTTSProvider as MainThreadGTTSProvider # Alias to avoid confusion
+                # Use language from config or default
+                lang = self.config.get('tts', {}).get('language', 'pt')
+                slow_mode = self.config.get('tts', {}).get('slow', False)
+                _ = MainThreadGTTSProvider(language=lang, slow=slow_mode) # Create and discard
+                print(f"[PYQT_DEBUG] __init__: GTTSProvider pre-initialized successfully in main thread with lang='{lang}'.")
+            except Exception as e_main_gtts_init:
+                print(f"[PYQT_DEBUG] __init__: Failed to pre-initialize GTTSProvider in main thread: {e_main_gtts_init}")
+                # Log this error as well
+                logging.error(f"Failed to pre-initialize GTTSProvider in main thread: {e_main_gtts_init}", exc_info=True)
+
+
     def init_ui(self):
         """Initialize the user interface"""
         self.setWindowTitle("LaTeX2Video (PyQt5)")
@@ -622,6 +639,7 @@ class LaTeX2VideoGUI(QMainWindow):
             
             # Initialize narrations list with empty strings
             self.narrations = [""] * len(self.slides)
+            self.prompts = [""] * len(self.slides) # Initialize prompts list
             
             # Update UI
             self.current_slide_index = 0
@@ -770,10 +788,8 @@ class LaTeX2VideoGUI(QMainWindow):
             QMessageBox.critical(self, "Error", "No narration scripts to save.")
             return
         
-        # Update the current narration from the text widget
-        current_narration = self.narration_text.toPlainText().strip()
-        if self.current_slide_index < len(self.narrations):
-            self.narrations[self.current_slide_index] = current_narration
+        # NOTE: Removed lines that updated self.narrations from self.narration_text (prompt editor).
+        # self.narrations should already contain the correct narrations.
         
         # Save all narrations to files
         output_dir = os.path.join(self.output_dir, 'chatgpt_responses')
@@ -891,9 +907,10 @@ class LaTeX2VideoGUI(QMainWindow):
         if not self.slides:
             return
         
-        # Save current narration
-        current_narration = self.narration_text.toPlainText().strip()
-        self.narrations[self.current_slide_index] = current_narration
+        # Save current prompt text from the editor
+        current_prompt_text = self.narration_text.toPlainText().strip()
+        if self.current_slide_index < len(self.prompts):
+            self.prompts[self.current_slide_index] = current_prompt_text
         
         # Move to previous slide
         if self.current_slide_index > 0:
@@ -905,9 +922,10 @@ class LaTeX2VideoGUI(QMainWindow):
         if not self.slides:
             return
         
-        # Save current narration
-        current_narration = self.narration_text.toPlainText().strip()
-        self.narrations[self.current_slide_index] = current_narration
+        # Save current prompt text from the editor
+        current_prompt_text = self.narration_text.toPlainText().strip()
+        if self.current_slide_index < len(self.prompts):
+            self.prompts[self.current_slide_index] = current_prompt_text
         
         # Move to next slide
         if self.current_slide_index < len(self.slides) - 1:
@@ -1149,12 +1167,12 @@ class LaTeX2VideoGUI(QMainWindow):
             self.update_status('Erro: narrações vazias ou inválidas detectadas.')
             return
 
-        # Save current narration
-        current_narration = self.narration_text.toPlainText().strip()
-        self.narrations[self.current_slide_index] = current_narration
+        # Save current narration - REMOVED, self.narrations should already be correct.
+        # current_narration = self.narration_text.toPlainText().strip() 
+        # self.narrations[self.current_slide_index] = current_narration
 
         # Save all narrations to files first
-        self.save_scripts()
+        self.save_scripts() # This will now save the correct self.narrations
 
         self.update_status('Generating audio files...')
 
@@ -1170,6 +1188,7 @@ class LaTeX2VideoGUI(QMainWindow):
         
         # Connect signals
         print("[PYQT_DEBUG] generate_audio: Connecting signals...")
+        thread.started.connect(lambda: print("[PYQT_DEBUG] generate_audio: thread.started SIGNAL EMITTED! (Lambda)")) # Diagnostic print
         thread.started.connect(worker.run)
         print("[PYQT_DEBUG] generate_audio: thread.started.connect(worker.run) connected.")
         worker.finished.connect(thread.quit)
@@ -1193,6 +1212,91 @@ class LaTeX2VideoGUI(QMainWindow):
         print("[PYQT_DEBUG] generate_audio: Thread started command issued.")
 
         # Keep a reference to the thread
+        self.threads.append(thread)
+        print("[PYQT_DEBUG] 2 generate_audio: Thread started command issued.")
+
+    def _test_gtts_import_in_thread_worker(self):
+        """Dummy worker to test gTTS import within a QThread."""
+        print("[PYQT_DEBUG] _test_gtts_import_in_thread_worker: Entered.")
+        try:
+            print("[PYQT_DEBUG] _test_gtts_import_in_thread_worker: Attempting to import gtts...")
+            from gtts import gTTS
+            print("[PYQT_DEBUG] _test_gtts_import_in_thread_worker: gtts imported successfully inside worker.")
+            # You could even try to instantiate it:
+            # test_tts = gTTS(text='test', lang='en')
+            # print("[PYQT_DEBUG] _test_gtts_import_in_thread_worker: gTTS object instantiated successfully.")
+            return "gTTS import test successful"
+        except Exception as e:
+            print(f"[PYQT_DEBUG] _test_gtts_import_in_thread_worker: Exception during gTTS import/test - {e}")
+            import traceback
+            print(traceback.format_exc())
+            raise
+
+    def generate_audio(self):
+        """Generate audio files from narration scripts"""
+        if not self.load_config():
+            return
+
+        # --- ORIGINAL CODE (Restored) ---
+        if not self.slides or not self.narrations:
+            QMessageBox.critical(self, 'Error', 'No narration scripts available. Por favor, gere os scripts antes de gerar o áudio.')
+            return
+
+        # Verificação extra: garantir que as narrações não estejam vazias ou só com placeholders
+        narrations_validas = [n for n in self.narrations if n.strip() and not n.strip().startswith("Script for slide") and not n.strip().startswith("Error generating script")]
+        if len(narrations_validas) < len(self.narrations):
+            QMessageBox.critical(self, 'Error', 'Algumas narrações estão vazias ou inválidas. Gere os scripts para todos os slides antes de gerar o áudio.')
+            self.update_status('Erro: narrações vazias ou inválidas detectadas.')
+            return
+
+        # Save current narration - REMOVED. self.narrations should be populated by script generation or loading.
+        # current_narration = self.narration_text.toPlainText().strip()
+        # self.narrations[self.current_slide_index] = current_narration
+
+        # Save all narrations to files first
+        self.save_scripts() # This will save the current state of self.narrations
+
+        self.update_status('Generating audio files...')
+
+        # Create a worker thread
+        self._current_audio_thread = QThread() # Store as instance attribute
+        thread = self._current_audio_thread # Use local alias for convenience
+        print("[PYQT_DEBUG] generate_audio: QThread object created and stored as self._current_audio_thread.")
+        print("[PRINT-DEBUG] generate_audio: thread criado") # Existing user debug
+        
+        self._current_audio_worker = Worker(self._generate_audio_worker) # Store as instance attribute
+        worker = self._current_audio_worker # Use local alias
+        print("[PYQT_DEBUG] generate_audio: Worker object created and stored as self._current_audio_worker.")
+        worker.moveToThread(thread)
+        print("[PYQT_DEBUG] generate_audio: Worker moved to thread.")
+        print("[PRINT-DEBUG] Depois worker.moveToThread(thread)") # Existing user debug
+        
+        # Connect signals
+        print("[PYQT_DEBUG] generate_audio: Connecting signals...")
+        thread.started.connect(lambda: print("[PYQT_DEBUG] generate_audio: thread.started SIGNAL EMITTED! (Lambda in second method)")) # Diagnostic print
+        thread.started.connect(worker.run)
+        print("[PYQT_DEBUG] generate_audio: thread.started.connect(worker.run) connected.")
+        worker.finished.connect(thread.quit)
+        print("[PYQT_DEBUG] generate_audio: worker.finished.connect(thread.quit) connected.")
+        worker.finished.connect(worker.deleteLater) 
+        print("[PYQT_DEBUG] generate_audio: worker.finished.connect(worker.deleteLater) connected.")
+        
+        print("[PRINT-DEBUG] Depois 2 worker.moveToThread(thread)") # Existing user debug
+        thread.finished.connect(thread.deleteLater) 
+        print("[PYQT_DEBUG] generate_audio: thread.finished.connect(thread.deleteLater) connected.")
+        worker.result.connect(self._on_audio_generated)
+        print("[PYQT_DEBUG] generate_audio: worker.result.connect(self._on_audio_generated) connected.")
+        worker.error.connect(self._on_error)
+        print("[PYQT_DEBUG] generate_audio: worker.error.connect(self._on_error) connected.")
+        print("[PYQT_DEBUG] generate_audio: All signals connected.")
+
+        print("[PRINT-DEBUG] Depois 3 worker.moveToThread(thread)") # Existing user debug
+        # Start the thread
+        print("[PYQT_DEBUG] generate_audio: About to start thread...")
+        thread.start()
+        print("[PYQT_DEBUG] generate_audio: Thread started command issued.")
+
+        # Keep a reference to the thread (optional if stored as instance var, but doesn't hurt)
         self.threads.append(thread)
 
     def _generate_audio_worker(self):
@@ -1322,12 +1426,16 @@ class LaTeX2VideoGUI(QMainWindow):
             QMessageBox.critical(self, 'Error', 'No slides or narrations available. Please parse LaTeX and generate scripts first.')
             return
         
-        # Save current narration
-        current_narration = self.narration_text.toPlainText().strip()
-        self.narrations[self.current_slide_index] = current_narration
+        # Save current prompt text from the editor
+        current_prompt_text = self.narration_text.toPlainText().strip()
+        if self.current_slide_index < len(self.prompts):
+            self.prompts[self.current_slide_index] = current_prompt_text
         
-        # Save all narrations to files
-        self.save_scripts()
+        # Save all narrations and prompts to files
+        self.save_scripts() # This will save self.narrations (responses)
+        # Consider adding a self.save_prompts() if you want to explicitly save self.prompts to _prompt.txt here as well,
+        # though _generate_scripts_worker already saves prompts.
+        # For now, the key is that self.narrations is correct for audio generation.
         
         self.update_status('Generating everything...')
         
